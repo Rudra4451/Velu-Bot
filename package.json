@@ -1,0 +1,20 @@
+{
+  "name": "velu-bot",
+  "version": "1.0.0",
+  "description": "Velu - Premium Zero-Persistence Discord Bot",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js",
+    "deploy": "node src/scripts/deploy.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.15.3",
+    "dotenv": "^16.4.5",
+    "zod": "^3.23.8"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
