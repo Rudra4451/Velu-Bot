@@ -13,6 +13,14 @@ const COOLDOWN_MS = 3000;
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
+function getUserId(arg) {
+  if (!arg) return null;
+  const mentionMatch = arg.match(/^<@!?(\d{17,20})>$/);
+  if (mentionMatch) return mentionMatch[1];
+  if (/^\d{17,20}$/.test(arg)) return arg;
+  return null;
+}
+
 function checkCooldown(userId, commandName) {
   const key = `${userId}:${commandName}`;
   const now = Date.now();
@@ -143,14 +151,24 @@ const commands = {
   },
 
   async avatar(message, args) {
-    const target = message.mentions.users.first() || message.author;
+    let target = message.mentions.users.first();
+    const id = args[0] ? getUserId(args[0]) : null;
+    if (id && (!target || target.id !== id)) {
+      target = await message.client.users.fetch(id).catch(() => null);
+    }
+    target = target || message.author;
     const url = target.displayAvatarURL({ size: 4096, dynamic: true });
     const embed = UIFactory.premium(`${target.username}'s Avatar`, null, { image: url });
     await safeReply(message, { embeds: [embed] });
   },
 
   async userinfo(message, args) {
-    const member = message.mentions.members.first() || message.member;
+    let member = message.mentions.members.first();
+    const id = args[0] ? getUserId(args[0]) : null;
+    if (id && (!member || member.id !== id)) {
+      member = await message.guild.members.fetch(id).catch(() => null);
+    }
+    member = member || message.member;
     const user = member.user;
     const roles = member.roles.cache.filter(r => r.id !== message.guild.id).sort((a, b) => b.position - a.position);
     const fields = [
@@ -198,9 +216,13 @@ const commands = {
   // ── Moderation ──
   async warn(message, args) {
     if (!(await guard(message, PermissionFlagsBits.ModerateMembers, null, 'warn'))) return;
-    const target = message.mentions.members.first();
+    let target = message.mentions.members.first();
+    const id = args[0] ? getUserId(args[0]) : null;
+    if (id && (!target || target.id !== id)) {
+      target = await message.guild.members.fetch(id).catch(() => null);
+    }
     if (!target) {
-      return safeReply(message, { embeds: [UIFactory.error('Missing Target', 'Mention a member to warn. Usage: `?warn @user <reason>`')] });
+      return safeReply(message, { embeds: [UIFactory.error('Missing Target', 'Mention a member or provide a valid user ID to warn. Usage: `?warn <@user/user_id> <reason>`')] });
     }
     const reason = args.slice(1).join(' ');
     if (!reason) {
@@ -226,9 +248,13 @@ const commands = {
 
   async warnings(message, args) {
     if (!(await guard(message, PermissionFlagsBits.ModerateMembers, null, 'warnings'))) return;
-    const target = message.mentions.users.first();
+    let target = message.mentions.users.first();
+    const id = args[0] ? getUserId(args[0]) : null;
+    if (id && (!target || target.id !== id)) {
+      target = await message.client.users.fetch(id).catch(() => null);
+    }
     if (!target) {
-      return safeReply(message, { embeds: [UIFactory.error('Missing Target', 'Mention a member. Usage: `?warnings @user`')] });
+      return safeReply(message, { embeds: [UIFactory.error('Missing Target', 'Mention a member or provide a valid user ID. Usage: `?warnings <@user/user_id>`')] });
     }
     const warns = db.getWarnings(message.guild.id, target.id);
     if (!warns.length) {
@@ -245,9 +271,13 @@ const commands = {
 
   async clearwarnings(message, args) {
     if (!(await guard(message, PermissionFlagsBits.ModerateMembers, null, 'clearwarnings'))) return;
-    const target = message.mentions.members.first();
+    let target = message.mentions.members.first();
+    const id = args[0] ? getUserId(args[0]) : null;
+    if (id && (!target || target.id !== id)) {
+      target = await message.guild.members.fetch(id).catch(() => null);
+    }
     if (!target) {
-      return safeReply(message, { embeds: [UIFactory.error('Missing Target', 'Mention a member. Usage: `?clearwarnings @user`')] });
+      return safeReply(message, { embeds: [UIFactory.error('Missing Target', 'Mention a member or provide a valid user ID. Usage: `?clearwarnings <@user/user_id>`')] });
     }
     if (!(await hierarchyCheck(message, target))) return;
     const count = db.clearWarnings(message.guild.id, target.id);
@@ -257,9 +287,13 @@ const commands = {
 
   async kick(message, args) {
     if (!(await guard(message, PermissionFlagsBits.KickMembers, PermissionFlagsBits.KickMembers, 'kick'))) return;
-    const target = message.mentions.members.first();
+    let target = message.mentions.members.first();
+    const id = args[0] ? getUserId(args[0]) : null;
+    if (id && (!target || target.id !== id)) {
+      target = await message.guild.members.fetch(id).catch(() => null);
+    }
     if (!target) {
-      return safeReply(message, { embeds: [UIFactory.error('Missing Target', 'Mention a member. Usage: `?kick @user [reason]`')] });
+      return safeReply(message, { embeds: [UIFactory.error('Missing Target', 'Mention a member or provide a valid user ID. Usage: `?kick <@user/user_id> [reason]`')] });
     }
     const reason = args.slice(1).join(' ') || 'No reason provided';
     if (!(await hierarchyCheck(message, target))) return;
@@ -284,21 +318,33 @@ const commands = {
 
   async ban(message, args) {
     if (!(await guard(message, PermissionFlagsBits.BanMembers, PermissionFlagsBits.BanMembers, 'ban'))) return;
-    const target = message.mentions.members.first();
-    if (!target) {
-      return safeReply(message, { embeds: [UIFactory.error('Missing Target', 'Mention a member. Usage: `?ban @user [reason]`')] });
+    let targetUser = message.mentions.users.first();
+    let targetMember = message.mentions.members.first();
+    const id = args[0] ? getUserId(args[0]) : null;
+    if (id) {
+      if (!targetUser || targetUser.id !== id) {
+        targetUser = await message.client.users.fetch(id).catch(() => null);
+      }
+      if (targetUser && (!targetMember || targetMember.id !== id)) {
+        targetMember = await message.guild.members.fetch(id).catch(() => null);
+      }
+    }
+    if (!targetUser) {
+      return safeReply(message, { embeds: [UIFactory.error('Missing Target', 'Mention a user or provide a valid user ID. Usage: `?ban <@user/user_id> [reason]`')] });
     }
     const reason = args.slice(1).join(' ') || 'No reason provided';
-    if (!(await hierarchyCheck(message, target))) return;
+    if (targetMember) {
+      if (!(await hierarchyCheck(message, targetMember))) return;
+    }
     try {
-      await target.ban({ reason });
+      await message.guild.bans.create(targetUser.id, { reason });
       const gifUrl = await klipyService.search('ban', 'anime ban hammer');
-      const embed = UIFactory.success('User Banned', `${target.user.tag} was banned.\n**Reason:** ${reason}`, { image: gifUrl || undefined });
+      const embed = UIFactory.success('User Banned', `${targetUser.tag} was banned.\n**Reason:** ${reason}`, { image: gifUrl || undefined });
       await safeReply(message, { embeds: [embed] });
       await actionLogger.log(message.guild, {
         title: '🔨 Member Banned',
         fields: [
-          { name: 'Target', value: `${target.user.tag} (\`${target.id}\`)`, inline: true },
+          { name: 'Target', value: `${targetUser.tag} (\`${targetUser.id}\`)`, inline: true },
           { name: 'Moderator', value: `${message.author.tag}`, inline: true },
           { name: 'Reason', value: reason, inline: false },
         ],
@@ -311,9 +357,9 @@ const commands = {
 
   async unban(message, args) {
     if (!(await guard(message, PermissionFlagsBits.BanMembers, PermissionFlagsBits.BanMembers, 'unban'))) return;
-    const userId = args[0];
-    if (!userId || !/^\d{17,20}$/.test(userId)) {
-      return safeReply(message, { embeds: [UIFactory.error('Invalid ID', 'Provide a valid user ID. Usage: `?unban <user_id> [reason]`')] });
+    const userId = args[0] ? getUserId(args[0]) : null;
+    if (!userId) {
+      return safeReply(message, { embeds: [UIFactory.error('Invalid Target', 'Provide a valid user ID or mention. Usage: `?unban <@user/user_id> [reason]`')] });
     }
     const reason = args.slice(1).join(' ') || 'No reason provided';
     try {
@@ -327,10 +373,14 @@ const commands = {
 
   async timeout(message, args) {
     if (!(await guard(message, PermissionFlagsBits.ModerateMembers, PermissionFlagsBits.ModerateMembers, 'timeout'))) return;
-    const target = message.mentions.members.first();
+    let target = message.mentions.members.first();
+    const id = args[0] ? getUserId(args[0]) : null;
+    if (id && (!target || target.id !== id)) {
+      target = await message.guild.members.fetch(id).catch(() => null);
+    }
     const durationStr = args[1];
     if (!target || !durationStr) {
-      return safeReply(message, { embeds: [UIFactory.error('Usage', '`?timeout @user <minutes> [reason]`')] });
+      return safeReply(message, { embeds: [UIFactory.error('Usage', '`?timeout <@user/user_id> <minutes> [reason]`')] });
     }
     const minutes = parseInt(durationStr, 10);
     if (isNaN(minutes) || minutes < 1 || minutes > 10080) {
@@ -349,9 +399,13 @@ const commands = {
 
   async untimeout(message, args) {
     if (!(await guard(message, PermissionFlagsBits.ModerateMembers, PermissionFlagsBits.ModerateMembers, 'untimeout'))) return;
-    const target = message.mentions.members.first();
+    let target = message.mentions.members.first();
+    const id = args[0] ? getUserId(args[0]) : null;
+    if (id && (!target || target.id !== id)) {
+      target = await message.guild.members.fetch(id).catch(() => null);
+    }
     if (!target) {
-      return safeReply(message, { embeds: [UIFactory.error('Usage', '`?untimeout @user [reason]`')] });
+      return safeReply(message, { embeds: [UIFactory.error('Usage', '`?untimeout <@user/user_id> [reason]`')] });
     }
     const reason = args.slice(1).join(' ') || 'No reason provided';
     if (!(await hierarchyCheck(message, target))) return;
@@ -421,9 +475,13 @@ const commands = {
 
   async nickname(message, args) {
     if (!(await guard(message, PermissionFlagsBits.ManageNicknames, PermissionFlagsBits.ManageNicknames, 'nickname'))) return;
-    const target = message.mentions.members.first();
+    let target = message.mentions.members.first();
+    const id = args[0] ? getUserId(args[0]) : null;
+    if (id && (!target || target.id !== id)) {
+      target = await message.guild.members.fetch(id).catch(() => null);
+    }
     if (!target) {
-      return safeReply(message, { embeds: [UIFactory.error('Usage', '`?nickname @user [new nickname]`')] });
+      return safeReply(message, { embeds: [UIFactory.error('Usage', '`?nickname <@user/user_id> [new nickname]`')] });
     }
     const nick = args.slice(1).join(' ') || null;
     if (!(await hierarchyCheck(message, target))) return;
