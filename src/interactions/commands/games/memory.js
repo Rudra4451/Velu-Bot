@@ -69,15 +69,22 @@ export function buildMemoryRows(game, refKey) {
 export function renderMemoryEmbed(game) {
   if (game.status === 'finished') {
     return UIFactory.success(
-      '🎉 Memory Match Complete!',
-      `${mentionUser(game.player)} found all **${PAIR_COUNT}** pairs in **${game.attempts}** attempts!`
+      'Memory Match Complete!',
+      `👤 **Player:** ${mentionUser(game.player)}\n` +
+      `🏆 **Result:** Found all **${PAIR_COUNT}** pairs!\n` +
+      `🔄 **Total Attempts:** \`${game.attempts}\``
     );
   }
 
-  return UIFactory.premium(
-    '🧠 Memory Match',
-    `**Player:** ${mentionUser(game.player)}\n` +
-    `**Attempts:** \`${game.attempts}\`  •  **Pairs Found:** \`${game.matched}/${PAIR_COUNT}\`\n\n` +
-    `Flip two cards and find all matching pairs!`
-  );
+  const description = [
+    `👤 **Player:** ${mentionUser(game.player)}`,
+    ``,
+    `📊 **Statistics**`,
+    `> 🔄 \`Attempts:\` **${game.attempts}**`,
+    `> ✨ \`Pairs Found:\` **${game.matched} / ${PAIR_COUNT}**`,
+    ``,
+    `💡 *Click the buttons below to flip and find matching pairs!*`
+  ].join('\n');
+
+  return UIFactory.premium('Memory Match', description);
 }

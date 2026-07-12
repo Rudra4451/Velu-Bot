@@ -519,24 +519,27 @@ const commands = {
     const prefix = config.BOT_PREFIX;
     const fields = [
       {
-        name: '⚙️ Utility',
-        value: `\`${prefix}ping\` \`${prefix}avatar\` \`${prefix}userinfo\` \`${prefix}serverinfo\` \`${prefix}afk\``,
+        name: '⚙️  Utility Commands',
+        value: `>>> \`${prefix}ping\` • \`${prefix}avatar\` • \`${prefix}userinfo\` • \`${prefix}serverinfo\` • \`${prefix}afk\``,
         inline: false,
       },
       {
-        name: '🛡️ Moderation',
-        value: `\`${prefix}warn\` \`${prefix}warnings\` \`${prefix}clearwarnings\` \`${prefix}kick\` \`${prefix}ban\` \`${prefix}unban\` \`${prefix}timeout\` \`${prefix}untimeout\` \`${prefix}purge\` \`${prefix}slowmode\` \`${prefix}lock\` \`${prefix}unlock\` \`${prefix}nickname\``,
+        name: '🛡️  Moderation Commands',
+        value: `>>> \`${prefix}warn\` • \`${prefix}warnings\` • \`${prefix}clearwarnings\`\n` +
+               `\`${prefix}kick\` • \`${prefix}ban\` • \`${prefix}unban\`\n` +
+               `\`${prefix}timeout\` • \`${prefix}untimeout\` • \`${prefix}purge\`\n` +
+               `\`${prefix}slowmode\` • \`${prefix}lock\` • \`${prefix}unlock\` • \`${prefix}nickname\``,
         inline: false,
       },
       {
-        name: '💡 Tip',
-        value: `Slash commands (\`/\`) are also available with full autocomplete and options.\nThis prefix (\`${prefix}\`) is a shortcut for power users.`,
+        name: '💡  Pro-Tip',
+        value: `> Slash commands (\`/\`) are also fully supported with interactive auto-completing options. The \`${prefix}\` prefix is a powerful shortcut for desktop users.`,
         inline: false,
       },
     ];
     const embed = UIFactory.premium(
-      `✦ Velu Prefix Commands`,
-      `Current prefix: \`${prefix}\`  ·  Use \`${prefix}help\` to see this menu.`,
+      `Velu Commands Help`,
+      `**Current Prefix:** \`${prefix}\` • Active Guild Commands List`,
       { fields }
     );
     await safeReply(message, { embeds: [embed] });

@@ -57,10 +57,16 @@ export async function execute(interaction) {
 
 export function renderRpsEmbed(game) {
   if (game.status === 'pending') {
-    return UIFactory.premium(
-      '🪨 Rock, Paper, Scissors ✂️',
-      `**Challenger:** ${mentionUser(game.p1)}\n**Opponent:** ${mentionUser(game.p2)}\n\nBoth players, select your move below!`
-    );
+    const description = [
+      `⚔️ **Lobby**`,
+      `> 👤 \`Challenger:\` ${mentionUser(game.p1)}`,
+      `> 👤 \`Opponent:\` ${mentionUser(game.p2)}`,
+      ``,
+      `🎮 **How to Play**`,
+      `> Select your move (**Rock**, **Paper**, or **Scissors**) using the buttons below!`,
+      `> *Moves are kept secret until both players choose.*`
+    ].join('\n');
+    return UIFactory.premium('Rock, Paper, Scissors', description);
   }
 
   if (game.status === 'finished') {
@@ -69,26 +75,32 @@ export function renderRpsEmbed(game) {
 
     let resultText;
     if (game.winner === 'draw') {
-      resultText = "🤝 It's a tie! Both chose the same move.";
+      resultText = `> 🤝 **It's a tie!** Both players chose ${p1Icon} **${game.p1Choice}**.`;
     } else {
       const winner = game.winner === 'p1' ? game.p1 : game.p2;
-      resultText = `🎉 ${displayUser(winner)} wins!`;
+      resultText = `> 🎉 **Winner:** ${mentionUser(winner)} wins the game!`;
     }
 
-    return UIFactory.success(
-      'RPS — Game Over',
-      `${mentionUser(game.p1)} chose ${p1Icon} **${game.p1Choice}**\n` +
-      `${mentionUser(game.p2)} chose ${p2Icon} **${game.p2Choice}**\n\n` +
+    const description = [
+      `⚔️ **Match Outcome**`,
+      `> ${mentionUser(game.p1)} chose ${p1Icon} **${game.p1Choice}**`,
+      `> ${mentionUser(game.p2)} chose ${p2Icon} **${game.p2Choice}**`,
+      ``,
       resultText
-    );
+    ].join('\n');
+
+    return UIFactory.success('RPS — Game Over', description);
   }
 
   // Playing (one player has chosen, waiting for other)
-  return UIFactory.premium(
-    'RPS — Awaiting Moves',
-    `${mentionUser(game.p1)} ${game.p1Choice ? '✅ Ready' : '⏳ Choosing...'}\n` +
-    `${mentionUser(game.p2)} ${game.p2Choice ? '✅ Ready' : '⏳ Choosing...'}`
-  );
+  const description = [
+    `⚔️ **Match Progress**`,
+    `> ${mentionUser(game.p1)} ${game.p1Choice ? '✅ `Ready`' : '⏳ `Choosing...`'}`,
+    `> ${mentionUser(game.p2)} ${game.p2Choice ? '✅ `Ready`' : '⏳ `Choosing...`'}`,
+    ``,
+    `💡 *Waiting for all moves to be locked in.*`
+  ].join('\n');
+  return UIFactory.premium('RPS — Awaiting Moves', description);
 }
 
 function choiceIcon(choice) {

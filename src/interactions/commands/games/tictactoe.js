@@ -73,22 +73,29 @@ export function renderTttEmbed(game) {
     if (game.winner === 'draw') {
       return UIFactory.warning(
         'Tic Tac Toe — Draw!',
-        `It's a draw between ${mentionUser(game.p1)} and ${mentionUser(game.p2)}!`
+        `⚔️ **Match Result**\n> 🤝 It's a draw between ${mentionUser(game.p1)} and ${mentionUser(game.p2)}!\n\n*The board is shown below in its final state.*`
       );
     }
     const winner = game.winner === 'p1' ? game.p1 : game.p2;
     return UIFactory.success(
       'Tic Tac Toe — Game Over',
-      `🎉 ${displayUser(winner)} wins!`
+      `⚔️ **Match Result**\n> 🎉 ${displayUser(winner)} wins the game!\n\n*Congratulations!*`
     );
   }
 
   const current = game.turn === 'p1' ? game.p1 : game.p2;
   const symbol = game.turn === 'p1' ? '✕' : '○';
-  return UIFactory.premium(
-    '🎮 Tic Tac Toe',
-    `**Challenger (✕):** ${mentionUser(game.p1)}\n**Opponent (○):** ${mentionUser(game.p2)}\n\nIt is ${mentionUser(current)}'s turn (${symbol})!`
-  );
+  const description = [
+    `⚔️ **Battle Details**`,
+    `> ✕ \`Player 1:\` ${mentionUser(game.p1)}`,
+    `> ○ \`Player 2:\` ${mentionUser(game.p2)}`,
+    ``,
+    `🎲 **Current Status**`,
+    `> It is currently ${mentionUser(current)}'s turn (${symbol})!`,
+    `> *Make your move by clicking a button below.*`
+  ].join('\n');
+
+  return UIFactory.premium('Tic Tac Toe', description);
 }
 
 /** Check if the board has a winning line using shared constant. */

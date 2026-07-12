@@ -15,7 +15,7 @@ export class UIFactory {
 
     // Only set title if non-empty
     if (title) {
-      embed.setTitle(icon ? `${icon} ${title}` : title);
+      embed.setTitle(icon ? `${icon} ⠂ ${title}` : title);
     }
 
     if (description) {

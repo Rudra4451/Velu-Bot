@@ -37,22 +37,30 @@ export async function execute(interaction) {
 export function renderGuessEmbed(game) {
   if (game.status === 'won') {
     return UIFactory.success(
-      '🎉 Correct Guess!',
-      `Congratulations ${mentionUser(game.player)}! You guessed **${game.target}** in **${game.attempts}** attempt(s)!`
+      'Correct Guess!',
+      `👤 **Player:** ${mentionUser(game.player)}\n` +
+      `🏆 **Result:** You guessed it right in **${game.attempts}** attempt(s)!\n` +
+      `🔢 **The Number was:** \`${game.target}\``
     );
   }
 
   if (game.status === 'lost') {
     return UIFactory.error(
-      '💀 Game Over',
-      `You used all ${game.maxAttempts} attempts. The number was **${game.target}**.`
+      'Game Over',
+      `👤 **Player:** ${mentionUser(game.player)}\n` +
+      `❌ **Result:** You used all ${game.maxAttempts} attempts.\n` +
+      `🔢 **The Number was:** \`${game.target}\``
     );
   }
 
-  return UIFactory.premium(
-    '🔢 Guess the Number',
-    `**Player:** ${mentionUser(game.player)}\n` +
-    `**Attempts:** \`${game.attempts}/${game.maxAttempts}\`\n\n` +
-    `📢 ${game.hint}`
-  );
+  const description = [
+    `👤 **Player:** ${mentionUser(game.player)}`,
+    `📊 **Attempts:** \`${game.attempts} / ${game.maxAttempts}\``,
+    ``,
+    `📢 **Hint:** ${game.hint}`,
+    ``,
+    `*Click the green button below to submit a guess.*`
+  ].join('\n');
+
+  return UIFactory.premium('Guess the Number', description);
 }

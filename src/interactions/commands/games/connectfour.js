@@ -83,22 +83,35 @@ export function renderC4Embed(game) {
 
   if (game.status === 'finished') {
     if (game.winner === 'draw') {
-      return UIFactory.warning('Connect Four — Draw!', `It's a draw!\n\n${grid}`);
+      return UIFactory.warning(
+        'Connect Four — Draw!',
+        `⚔️ **Match Result**\n> 🤝 It's a draw between ${mentionUser(game.p1)} and ${mentionUser(game.p2)}!\n\n⬇️ **Final Board**\n${grid}`
+      );
     }
     const winner = game.winner === 'p1' ? game.p1 : game.p2;
     const color = game.winner === 'p1' ? '🔴' : '🟡';
     return UIFactory.success(
       'Connect Four — Game Over',
-      `🎉 ${displayUser(winner)} (${color}) wins!\n\n${grid}`
+      `⚔️ **Match Result**\n> 🎉 ${displayUser(winner)} (${color}) wins the game!\n\n⬇️ **Final Board**\n${grid}`
     );
   }
 
   const current = game.turn === 'p1' ? game.p1 : game.p2;
   const color = game.turn === 'p1' ? '🔴' : '🟡';
-  return UIFactory.premium(
-    '🎮 Connect Four',
-    `**Challenger (🔴):** ${mentionUser(game.p1)}\n**Opponent (🟡):** ${mentionUser(game.p2)}\n\n${mentionUser(current)}'s turn (${color})\n\n${grid}`
-  );
+  const description = [
+    `⚔️ **Battle Details**`,
+    `> 🔴 \`Player 1:\` ${mentionUser(game.p1)}`,
+    `> 🟡 \`Player 2:\` ${mentionUser(game.p2)}`,
+    ``,
+    `🎲 **Current Status**`,
+    `> It is currently ${mentionUser(current)}'s turn (${color})!`,
+    `> *Drop your checker using the dropdown below.*`,
+    ``,
+    `⬇️ **Game Board**`,
+    grid
+  ].join('\n');
+
+  return UIFactory.premium('Connect Four', description);
 }
 
 /** Drop a checker into a column; returns the row index or -1 if full. */
