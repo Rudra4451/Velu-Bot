@@ -27,6 +27,7 @@ export async function execute(interaction) {
     revealed: Array(GRID_SIZE).fill(false),
     selected: [],  // indices of currently face-up un-matched cards (max 2)
     attempts: 0,
+    maxAttempts: 15,
     matched: 0,
     status: 'playing', // playing | finished
   };
@@ -51,7 +52,7 @@ export function buildMemoryRows(game, refKey) {
 
       const label = visible ? game.deck[idx] : '?';
       const style = isRevealed ? ButtonStyle.Success : isSelected ? ButtonStyle.Primary : ButtonStyle.Secondary;
-      const disabled = game.status === 'finished' || isRevealed || isSelected;
+      const disabled = game.status === 'finished' || game.status === 'lost' || isRevealed || isSelected;
 
       row.addComponents(
         new ButtonBuilder()
@@ -72,7 +73,16 @@ export function renderMemoryEmbed(game) {
       'Memory Match Complete!',
       `👤 **Player:** ${mentionUser(game.player)}\n` +
       `🏆 **Result:** Found all **${PAIR_COUNT}** pairs!\n` +
-      `🔄 **Total Attempts:** \`${game.attempts}\``
+      `🔄 **Total Attempts:** \`${game.attempts} / ${game.maxAttempts}\``
+    );
+  }
+
+  if (game.status === 'lost') {
+    return UIFactory.error(
+      'Memory Match Failed',
+      `👤 **Player:** ${mentionUser(game.player)}\n` +
+      `❌ **Result:** You ran out of attempts!\n` +
+      `✨ **Pairs Found:** **${game.matched} / ${PAIR_COUNT}**`
     );
   }
 
@@ -80,7 +90,7 @@ export function renderMemoryEmbed(game) {
     `👤 **Player:** ${mentionUser(game.player)}`,
     ``,
     `📊 **Statistics**`,
-    `> 🔄 \`Attempts:\` **${game.attempts}**`,
+    `> 🔄 \`Attempts:\` **${game.attempts} / ${game.maxAttempts}**`,
     `> ✨ \`Pairs Found:\` **${game.matched} / ${PAIR_COUNT}**`,
     ``,
     `💡 *Click the buttons below to flip and find matching pairs!*`

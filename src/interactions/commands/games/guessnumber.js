@@ -15,7 +15,7 @@ export async function execute(interaction) {
     player: serializeUser(interaction.user),
     target,
     attempts: 0,
-    maxAttempts: 7,
+    maxAttempts: 6,
     status: 'playing', // playing | won | lost
     hint: 'Guess a number between **1** and **100**.',
   };

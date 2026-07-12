@@ -70,6 +70,53 @@ function getBestMove(board, botSymbol, playerSymbol) {
   return move;
 }
 
+// ─── Connect Four AI Heuristics ─────────────────────────────────────────
+function dropCheckerSimulate(board, col, player) {
+  const temp = [...board];
+  for (let r = 5; r >= 0; r--) {
+    const idx = r * 7 + col;
+    if (temp[idx] === null) {
+      temp[idx] = player;
+      return temp;
+    }
+  }
+  return null;
+}
+
+function getBestC4Move(board) {
+  const available = [];
+  for (let c = 0; c < 7; c++) {
+    if (board[c] === null) available.push(c);
+  }
+  if (available.length === 0) return -1;
+
+  // 1. Can bot (p2) win in 1 move?
+  for (const col of available) {
+    const simulated = dropCheckerSimulate(board, col, 'p2');
+    if (simulated && checkC4Win(simulated)) {
+      return col;
+    }
+  }
+
+  // 2. Does bot need to block player (p1) from winning?
+  for (const col of available) {
+    const simulated = dropCheckerSimulate(board, col, 'p1');
+    if (simulated && checkC4Win(simulated)) {
+      return col;
+    }
+  }
+
+  // 3. Control the center column (column 3)
+  const prefOrder = [3, 2, 4, 1, 5, 0, 6];
+  for (const col of prefOrder) {
+    if (available.includes(col)) {
+      return col;
+    }
+  }
+
+  return available[Math.floor(Math.random() * available.length)];
+}
+
 export const namespace = 'game';
 
 export async function execute(interaction, context) {
@@ -286,10 +333,8 @@ export async function execute(interaction, context) {
       game.turn = isP1Turn ? 'p2' : 'p1';
 
       if (game.isBot && game.turn === 'p2') {
-        const available = [];
-        for (let c = 0; c < 7; c++) { if (game.board[c] === null) available.push(c); }
-        if (available.length > 0) {
-          const botCol = available[Math.floor(Math.random() * available.length)];
+        const botCol = getBestC4Move(game.board);
+        if (botCol !== -1) {
           dropChecker(game.board, botCol, 'p2');
           if (checkC4Win(game.board)) {
             game.status = 'finished'; game.winner = 'p2';
@@ -334,12 +379,15 @@ export async function execute(interaction, context) {
         game.selected = [];
         if (game.matched === 8) game.status = 'finished';
       }
-      // Leave selected as-is so user sees both cards before next click resets
+      
+      if (game.status === 'playing' && game.attempts >= game.maxAttempts) {
+        game.status = 'lost';
+      }
     }
 
     const rows = buildMemoryRows(game, ref);
     const embed = renderMemoryEmbed(game);
-    await interaction.update({ embeds: [embed], components: game.status === 'finished' ? [] : rows });
+    await interaction.update({ embeds: [embed], components: (game.status === 'finished' || game.status === 'lost') ? [] : rows });
     return;
   }
 }
