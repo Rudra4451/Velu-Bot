@@ -10,6 +10,66 @@ import { renderGuessEmbed } from '../commands/games/guessnumber.js';
 import { buildC4Menu, renderC4Embed, dropChecker, checkC4Win } from '../commands/games/connectfour.js';
 import { buildMemoryRows, renderMemoryEmbed } from '../commands/games/memory.js';
 
+// ─── Tic Tac Toe Minimax Bot ───────────────────────────────────────────
+function getBestMove(board, botSymbol, playerSymbol) {
+  const TTT_LINES = [
+    [0, 1, 2], [3, 4, 5], [6, 7, 8],
+    [0, 3, 6], [1, 4, 7], [2, 5, 8],
+    [0, 4, 8], [2, 4, 6]
+  ];
+
+  const checkWin = (b, symbol) => {
+    return TTT_LINES.some(([a, bIndex, c]) => b[a] === symbol && b[bIndex] === symbol && b[c] === symbol);
+  };
+
+  const isFull = (b) => b.every(c => c !== null);
+
+  const minimax = (b, depth, isMaximizing) => {
+    if (checkWin(b, botSymbol)) return 10 - depth;
+    if (checkWin(b, playerSymbol)) return depth - 10;
+    if (isFull(b)) return 0;
+
+    if (isMaximizing) {
+      let bestScore = -Infinity;
+      for (let i = 0; i < 9; i++) {
+        if (b[i] === null) {
+          b[i] = botSymbol;
+          const score = minimax(b, depth + 1, false);
+          b[i] = null;
+          bestScore = Math.max(score, bestScore);
+        }
+      }
+      return bestScore;
+    } else {
+      let bestScore = Infinity;
+      for (let i = 0; i < 9; i++) {
+        if (b[i] === null) {
+          b[i] = playerSymbol;
+          const score = minimax(b, depth + 1, true);
+          b[i] = null;
+          bestScore = Math.min(score, bestScore);
+        }
+      }
+      return bestScore;
+    }
+  };
+
+  let bestScore = -Infinity;
+  let move = -1;
+  for (let i = 0; i < 9; i++) {
+    if (board[i] === null) {
+      board[i] = botSymbol;
+      const score = minimax(board, 0, false);
+      board[i] = null;
+      if (score > bestScore) {
+        bestScore = score;
+        move = i;
+      }
+    }
+  }
+  return move;
+}
+
 export const namespace = 'game';
 
 export async function execute(interaction, context) {
@@ -154,9 +214,8 @@ export async function execute(interaction, context) {
 
       // Bot move
       if (game.isBot && game.turn === 'p2') {
-        const empty = game.board.map((v, i) => v === null ? i : -1).filter(i => i !== -1);
-        if (empty.length > 0) {
-          const botIdx = empty[Math.floor(Math.random() * empty.length)];
+        const botIdx = getBestMove(game.board, 'O', 'X');
+        if (botIdx !== -1) {
           game.board[botIdx] = 'O';
           if (checkTttWin(game.board)) {
             game.status = 'finished'; game.winner = 'p2';
