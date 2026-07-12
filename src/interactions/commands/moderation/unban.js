@@ -14,19 +14,42 @@ export const data = new SlashCommandBuilder()
   .addStringOption(opt => opt.setName('reason').setDescription('Reason for unban').setRequired(false));
 
 export async function execute(interaction) {
-  const userId = interaction.options.getString('user_id');
+  const input = interaction.options.getString('user_id').trim();
   const reason = interaction.options.getString('reason') || 'No reason provided';
 
   await middleware.safeDefer(interaction);
 
+  // 1. Resolve target ID
+  const mentionMatch = input.match(/^<@!?(\d{17,20})>$/);
+  let targetId = mentionMatch ? mentionMatch[1] : (input.match(/^\d{17,20}$/) ? input : null);
+
+  // 2. If not ID, search guild bans by username/tag
+  if (!targetId) {
+    const cleanInput = input.replace(/^@/, '').toLowerCase();
+    try {
+      const bans = await interaction.guild.bans.fetch();
+      const matchedBan = bans.find(ban => 
+        ban.user.username.toLowerCase() === cleanInput ||
+        ban.user.tag.toLowerCase() === cleanInput
+      );
+      if (matchedBan) {
+        targetId = matchedBan.user.id;
+      }
+    } catch (err) {
+      // Quietly ignore or handle fetch errors
+    }
+  }
+
+  const userId = targetId || input;
+
   try {
     await interaction.guild.bans.remove(userId, reason);
   } catch (err) {
-    const embed = UIFactory.error('Unban Failed', `Could not unban user ID \`${userId}\`: ${err.message}`);
+    const embed = UIFactory.error('Unban Failed', `Could not unban user "${input}": ${err.message}`);
     return middleware.safeReply(interaction, { embeds: [embed] });
   }
 
-  const embed = UIFactory.success('User Unbanned', `Successfully unbanned user ID \`${userId}\`.\n**Reason:** ${reason}`);
+  const embed = UIFactory.success('User Unbanned', `Successfully unbanned user \`${userId}\`.\n**Reason:** ${reason}`);
   await middleware.safeReply(interaction, { embeds: [embed] });
 
   // Log to Audit Log
@@ -37,7 +60,7 @@ export async function execute(interaction) {
   ];
   await actionLogger.log(interaction.guild, {
     title: '🔓 Member Unbanned',
-    description: `User ID \`${userId}\` was unbanned by ${interaction.user.tag}.`,
+    description: `User \`${userId}\` was unbanned by ${interaction.user.tag}.`,
     fields,
     color: 0x00FA9A // Neon Mint
   });

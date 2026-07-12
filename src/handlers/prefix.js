@@ -357,10 +357,30 @@ const commands = {
 
   async unban(message, args) {
     if (!(await guard(message, PermissionFlagsBits.BanMembers, PermissionFlagsBits.BanMembers, 'unban'))) return;
-    const userId = args[0] ? getUserId(args[0]) : null;
-    if (!userId) {
-      return safeReply(message, { embeds: [UIFactory.error('Invalid Target', 'Provide a valid user ID or mention. Usage: `?unban <@user/user_id> [reason]`')] });
+    const input = args[0];
+    if (!input) {
+      return safeReply(message, { embeds: [UIFactory.error('Missing Target', 'Provide a valid user ID, mention, or username. Usage: `?unban <user/user_id> [reason]`')] });
     }
+
+    let userId = getUserId(input);
+
+    if (!userId) {
+      const cleanInput = input.replace(/^@/, '').toLowerCase();
+      try {
+        const bans = await message.guild.bans.fetch();
+        const matchedBan = bans.find(ban => 
+          ban.user.username.toLowerCase() === cleanInput ||
+          ban.user.tag.toLowerCase() === cleanInput
+        );
+        if (matchedBan) {
+          userId = matchedBan.user.id;
+        }
+      } catch (err) {
+        // Quietly ignore
+      }
+    }
+
+    userId = userId || input;
     const reason = args.slice(1).join(' ') || 'No reason provided';
     try {
       await message.guild.bans.remove(userId, reason);
