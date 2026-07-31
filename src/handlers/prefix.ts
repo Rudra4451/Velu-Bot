@@ -4,6 +4,7 @@ import { UIFactory } from '../ui/factory.js';
 import { db } from '../state/db.js';
 import { permissionManager } from '../utils/permissionManager.js';
 import { actionLogger } from '../utils/actionLogger.js';
+import { klipyService } from '../services/klipy.js';
 import { logger } from '../utils/logger.js';
 import type { VeluClient } from '../types/index.js';
 
@@ -239,6 +240,41 @@ const commands: Record<string, CommandFunction> = {
     db.setAFK(message.author.id, reason);
     const embed = UIFactory.premium('💤 AFK Status Set', `Reason: ${reason}\n*Send a message to remove your AFK.*`);
     await safeReply(message, { embeds: [embed] });
+  },
+
+  async sticker(message: Message, args: string[]) {
+    if (!args[0]) {
+      return safeReply(message, { embeds: [UIFactory.error('Missing Keyword', 'Provide a sticker query. Usage: `?sticker <query> [@user]`')] }) as unknown as undefined;
+    }
+
+    let targetUser: User | undefined;
+    const queryWords: string[] = [];
+
+    for (const arg of args) {
+      const resolved = await resolveUserOrMember(message, arg);
+      if (resolved.user && !targetUser) {
+        targetUser = resolved.user;
+      } else {
+        queryWords.push(arg);
+      }
+    }
+
+    const query = queryWords.join(' ') || 'sticker';
+    const gifUrl = await klipyService.search('sticker', query);
+
+    const description = targetUser
+      ? `${message.author} sent a sticker to ${targetUser}! 🌸`
+      : `${message.author} shared a sticker! ✨`;
+
+    const embed = UIFactory.premium(`✨ Sticker: ${query}`, description, {
+      image: gifUrl,
+      footerText: 'Powered by Klipy Stickers'
+    });
+
+    await safeReply(message, {
+      content: targetUser ? `${targetUser}` : undefined,
+      embeds: [embed]
+    });
   },
 
   // ── Moderation ──
