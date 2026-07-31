@@ -193,26 +193,30 @@ export const musicService = {
   },
 
   async searchTracks(query: string, user: any): Promise<any[]> {
-    let result = await player.search(query, {
+    const primary = await player.search(query, {
       requestedBy: user,
       searchEngine: 'auto'
     });
 
-    if (!result.hasTracks()) {
-      result = await player.search(query, {
-        requestedBy: user,
-        searchEngine: 'youtube'
-      });
+    if (primary.hasTracks()) {
+      return primary.tracks.slice(0, 10);
     }
 
-    if (!result.hasTracks()) {
-      result = await player.search(query, {
-        requestedBy: user,
-        searchEngine: 'soundcloud'
-      });
+    // Fast parallel fallback across YouTube and SoundCloud
+    const [ytRes, scRes] = await Promise.allSettled([
+      player.search(query, { requestedBy: user, searchEngine: 'youtube' }),
+      player.search(query, { requestedBy: user, searchEngine: 'soundcloud' })
+    ]);
+
+    if (ytRes.status === 'fulfilled' && ytRes.value.hasTracks()) {
+      return ytRes.value.tracks.slice(0, 10);
     }
 
-    return result.hasTracks() ? result.tracks.slice(0, 10) : [];
+    if (scRes.status === 'fulfilled' && scRes.value.hasTracks()) {
+      return scRes.value.tracks.slice(0, 10);
+    }
+
+    return [];
   },
 
   async play(member: GuildMember, query: string, textChannel: TextChannel): Promise<{ message: string; trackName: string; thumbnail?: string }> {
@@ -227,17 +231,16 @@ export const musicService = {
     });
 
     if (!searchResult.hasTracks()) {
-      searchResult = await player.search(query, {
-        requestedBy: member.user,
-        searchEngine: 'youtube'
-      });
-    }
+      const [ytRes, scRes] = await Promise.allSettled([
+        player.search(query, { requestedBy: member.user, searchEngine: 'youtube' }),
+        player.search(query, { requestedBy: member.user, searchEngine: 'soundcloud' })
+      ]);
 
-    if (!searchResult.hasTracks()) {
-      searchResult = await player.search(query, {
-        requestedBy: member.user,
-        searchEngine: 'soundcloud'
-      });
+      if (ytRes.status === 'fulfilled' && ytRes.value.hasTracks()) {
+        searchResult = ytRes.value;
+      } else if (scRes.status === 'fulfilled' && scRes.value.hasTracks()) {
+        searchResult = scRes.value;
+      }
     }
 
     if (!searchResult.hasTracks()) {

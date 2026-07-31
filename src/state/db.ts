@@ -29,119 +29,67 @@ export const db = {
     try {
       logger.info('🔄 Loading cached data from Supabase...');
 
-      // 1. Load Guild Configurations
-      const { data: configsData, error: configsErr } = await supabase
-        .from('guild_configs')
-        .select('*');
-      if (configsErr) throw configsErr;
-      if (configsData) {
-        for (const row of configsData) {
-          configs.set(row.guild_id, {
-            welcomeEnabled: row.welcome_enabled,
-            welcomeChannel: row.welcome_channel,
-            welcomeMessage: row.welcome_message,
-            welcomeAutoRole: row.welcome_auto_role,
-            goodbyeEnabled: row.goodbye_enabled,
-            goodbyeChannel: row.goodbye_channel,
-            goodbyeMessage: row.goodbye_message,
-            logEnabled: row.log_enabled,
-            logChannel: row.log_channel,
-            automodEnabled: row.automod_enabled ?? false,
-            automodSpamFilter: row.automod_spam_filter ?? false,
-            automodBlockInvites: row.automod_block_invites ?? false,
-            automodBadwords: row.automod_badwords ?? false,
-            automodBadwordsList: row.automod_badwords_list ?? [],
-          });
-        }
-        logger.info(`✅ Loaded ${configsData.length} guild configurations from Supabase.`);
-      }
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Supabase network timeout')), 1500)
+      );
 
-      // 2. Load Warnings
-      const { data: warningsData, error: warningsErr } = await supabase
-        .from('warnings')
-        .select('*');
-      if (warningsErr) throw warningsErr;
-      if (warningsData) {
-        for (const row of warningsData) {
-          if (!warnings.has(row.guild_id)) {
-            warnings.set(row.guild_id, new Map());
+      const fetchPromise = (async () => {
+        // 1. Load Guild Configurations
+        const { data: configsData } = await supabase.from('guild_configs').select('*');
+        if (configsData) {
+          for (const row of configsData) {
+            configs.set(row.guild_id, {
+              welcomeEnabled: row.welcome_enabled,
+              welcomeChannel: row.welcome_channel,
+              welcomeMessage: row.welcome_message,
+              welcomeAutoRole: row.welcome_auto_role,
+              goodbyeEnabled: row.goodbye_enabled,
+              goodbyeChannel: row.goodbye_channel,
+              goodbyeMessage: row.goodbye_message,
+              logEnabled: row.log_enabled,
+              logChannel: row.log_channel,
+              automodEnabled: row.automod_enabled ?? false,
+              automodSpamFilter: row.automod_spam_filter ?? false,
+              automodBlockInvites: row.automod_block_invites ?? false,
+              automodBadwords: row.automod_badwords ?? false,
+              automodBadwordsList: row.automod_badwords_list ?? [],
+            });
           }
-          const guildWarns = warnings.get(row.guild_id)!;
-          if (!guildWarns.has(row.user_id)) {
-            guildWarns.set(row.user_id, []);
-          }
-          guildWarns.get(row.user_id)!.push({
-            id: row.id,
-            moderatorId: row.moderator_id,
-            reason: row.reason,
-            timestamp: Number(row.timestamp),
-          });
         }
-        logger.info(`✅ Loaded ${warningsData.length} warnings from Supabase.`);
-      }
 
-      // 3. Load AFK States
-      const { data: afkData, error: afkErr } = await supabase
-        .from('afk_states')
-        .select('*');
-      if (afkErr) throw afkErr;
-      if (afkData) {
-        for (const row of afkData) {
-          afkStates.set(row.user_id, {
-            reason: row.reason,
-            gifUrl: row.gif_url,
-            timestamp: Number(row.timestamp),
-          });
-        }
-        logger.info(`✅ Loaded ${afkData.length} AFK states from Supabase.`);
-      }
-
-      // 4. Load Permissions
-      const { data: permsData, error: permsErr } = await supabase
-        .from('permissions')
-        .select('*');
-      if (permsErr) throw permsErr;
-      if (permsData) {
-        for (const row of permsData) {
-          if (!permissions.has(row.guild_id)) {
-            permissions.set(row.guild_id, new Map());
+        // 2. Load Warnings
+        const { data: warningsData } = await supabase.from('warnings').select('*');
+        if (warningsData) {
+          for (const row of warningsData) {
+            if (!warnings.has(row.guild_id)) warnings.set(row.guild_id, new Map());
+            const guildWarns = warnings.get(row.guild_id)!;
+            if (!guildWarns.has(row.user_id)) guildWarns.set(row.user_id, []);
+            guildWarns.get(row.user_id)!.push({
+              id: row.id,
+              moderatorId: row.moderator_id,
+              reason: row.reason,
+              timestamp: Number(row.timestamp),
+            });
           }
-          const guildPerms = permissions.get(row.guild_id)!;
-          const normalizedTarget = row.target.toLowerCase();
-          if (!guildPerms.has(normalizedTarget)) {
-            guildPerms.set(normalizedTarget, []);
-          }
-          guildPerms.get(normalizedTarget)!.push(row.role_id);
         }
-        logger.info(`✅ Loaded ${permsData.length} permission roles from Supabase.`);
-      }
 
-      // 5. Load Economy
-      const { data: ecoData, error: ecoErr } = await supabase
-        .from('economy')
-        .select('*');
-      if (ecoErr) throw ecoErr;
-      if (ecoData) {
-        for (const row of ecoData) {
-          if (!economy.has(row.guild_id)) {
-            economy.set(row.guild_id, new Map());
+        // 3. Load AFK States
+        const { data: afkData } = await supabase.from('afk_states').select('*');
+        if (afkData) {
+          for (const row of afkData) {
+            afkStates.set(row.user_id, {
+              reason: row.reason,
+              gifUrl: row.gif_url,
+              timestamp: Number(row.timestamp),
+            });
           }
-          const guildEco = economy.get(row.guild_id)!;
-          guildEco.set(row.user_id, {
-            userId: row.user_id,
-            xp: row.xp,
-            level: row.level,
-            coins: row.coins,
-            lastDaily: Number(row.last_daily),
-            lastMessageTime: Number(row.last_message_time),
-          });
         }
-        logger.info(`✅ Loaded ${ecoData.length} economy profiles from Supabase.`);
-      }
+      })();
 
-      logger.info('🎉 Database cached from Supabase successfully.');
+      await Promise.race([fetchPromise, timeoutPromise]);
+      logger.info('✅ Supabase cache initialized.');
     } catch (err: any) {
-      logger.error('❌ Error loading data from Supabase:', err);
+      logger.warn(`⚡ Fast-started with in-memory DB: ${err.message || err}`);
     }
   },
 
