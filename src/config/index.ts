@@ -10,6 +10,7 @@ const configSchema = z.object({
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
   KLIPY_API_KEY: z.string().optional(),
   BOT_PREFIX: z.string().min(1).max(3).default('?'),
+  BOT_PREFIXES: z.string().optional(),
   SUPABASE_URL: z.string().optional(),
   SUPABASE_KEY: z.string().optional(),
 });
@@ -24,6 +25,7 @@ const parseConfig = (): AppConfig => {
     LOG_LEVEL: process.env.LOG_LEVEL,
     KLIPY_API_KEY: process.env.KLIPY_API_KEY,
     BOT_PREFIX: process.env.BOT_PREFIX,
+    BOT_PREFIXES: process.env.BOT_PREFIXES,
     SUPABASE_URL: process.env.SUPABASE_URL,
     SUPABASE_KEY: process.env.SUPABASE_KEY,
   });
@@ -37,3 +39,11 @@ const parseConfig = (): AppConfig => {
 };
 
 export const config = parseConfig();
+
+/** All active bot prefixes — parsed from BOT_PREFIXES or falls back to BOT_PREFIX */
+export const BOT_PREFIXES: string[] = (() => {
+  if (config.BOT_PREFIXES) {
+    return config.BOT_PREFIXES.split(',').map(p => p.trim()).filter(p => p.length > 0);
+  }
+  return [config.BOT_PREFIX];
+})();

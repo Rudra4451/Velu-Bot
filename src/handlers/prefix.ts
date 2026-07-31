@@ -528,8 +528,15 @@ const commands: Record<string, CommandFunction> = {
 
   // ── Help ──
   async help(message: Message) {
-    const prefix = config.BOT_PREFIX;
+    const prefixes = (await import('../config/index.js')).BOT_PREFIXES;
+    const prefix = prefixes[0];
+    const prefixDisplay = prefixes.map(p => `\`${p}\``).join('  ');
     const fields = [
+      {
+        name: '🎯  Active Prefixes',
+        value: `>>> ${prefixDisplay}\nUse any of these before a command name!`,
+        inline: false,
+      },
       {
         name: '⚙️  Utility Commands',
         value: `>>> \`${prefix}ping\` • \`${prefix}avatar\` • \`${prefix}userinfo\` • \`${prefix}serverinfo\` • \`${prefix}afk\``,
@@ -545,13 +552,13 @@ const commands: Record<string, CommandFunction> = {
       },
       {
         name: '💡  Pro-Tip',
-        value: `> Slash commands (\`/\`) are also fully supported with interactive auto-completing options. The \`${prefix}\` prefix is a powerful shortcut for desktop users.`,
+        value: `> Slash commands (\`/\`) are also fully supported with interactive auto-completing options.\n> Example: \`${prefixes[1] || prefix}ping\` works the same as \`${prefix}ping\`!`,
         inline: false,
       },
     ];
     const embed = UIFactory.premium(
       `Velu Commands Help`,
-      `**Current Prefix:** \`${prefix}\` • Active Guild Commands List`,
+      `**All Prefixes:** ${prefixDisplay}`,
       { fields }
     );
     await safeReply(message, { embeds: [embed] });
@@ -561,10 +568,14 @@ const commands: Record<string, CommandFunction> = {
 // ─── Router ───────────────────────────────────────────────────────────────────
 
 export async function handlePrefixCommand(message: Message): Promise<void> {
-  const prefix = config.BOT_PREFIX;
-  if (!message.content.startsWith(prefix)) return;
+  const prefixes = (await import('../config/index.js')).BOT_PREFIXES;
 
-  const args = message.content.slice(prefix.length).trim().split(/\s+/);
+  // Find which prefix was used (longest match first to avoid partial matches)
+  const sortedPrefixes = [...prefixes].sort((a, b) => b.length - a.length);
+  const matchedPrefix = sortedPrefixes.find(p => message.content.startsWith(p));
+  if (!matchedPrefix) return;
+
+  const args = message.content.slice(matchedPrefix.length).trim().split(/\s+/);
   const commandName = args.shift()?.toLowerCase();
 
   if (!commandName || !commands[commandName]) return;
@@ -572,14 +583,14 @@ export async function handlePrefixCommand(message: Message): Promise<void> {
   // Cooldown check
   const cooldownLeft = checkCooldown(message.author.id, commandName);
   if (cooldownLeft) {
-    const embed = UIFactory.warning('Slow Down', `Please wait **${cooldownLeft}s** before using \`${prefix}${commandName}\` again.`);
+    const embed = UIFactory.warning('Slow Down', `Please wait **${cooldownLeft}s** before using \`${matchedPrefix}${commandName}\` again.`);
     const reply = await safeReply(message, { embeds: [embed] });
     if (reply) setTimeout(() => reply.delete().catch(() => {}), 3000);
     return;
   }
 
   try {
-    logger.debug(`Executing prefix command ${prefix}${commandName} for User: ${message.author.tag}`);
+    logger.debug(`Executing prefix command ${matchedPrefix}${commandName} for User: ${message.author.tag}`);
     await commands[commandName](message, args);
   } catch (err: any) {
     logger.error(`Error in prefix command ${commandName}:`, err);
