@@ -192,19 +192,56 @@ export const musicService = {
     };
   },
 
+  async searchTracks(query: string, user: any): Promise<any[]> {
+    let result = await player.search(query, {
+      requestedBy: user,
+      searchEngine: 'auto'
+    });
+
+    if (!result.hasTracks()) {
+      result = await player.search(query, {
+        requestedBy: user,
+        searchEngine: 'youtube'
+      });
+    }
+
+    if (!result.hasTracks()) {
+      result = await player.search(query, {
+        requestedBy: user,
+        searchEngine: 'soundcloud'
+      });
+    }
+
+    return result.hasTracks() ? result.tracks.slice(0, 10) : [];
+  },
+
   async play(member: GuildMember, query: string, textChannel: TextChannel): Promise<{ message: string; trackName: string; thumbnail?: string }> {
     const channel = member.voice.channel;
     if (!channel) {
       throw new Error('You must join a voice channel to play music.');
     }
 
-    const searchResult = await player.search(query, {
+    let searchResult = await player.search(query, {
       requestedBy: member.user,
       searchEngine: 'auto'
     });
 
     if (!searchResult.hasTracks()) {
-      throw new Error('No audio tracks found for that search query or link.');
+      searchResult = await player.search(query, {
+        requestedBy: member.user,
+        searchEngine: 'youtube'
+      });
+    }
+
+    if (!searchResult.hasTracks()) {
+      searchResult = await player.search(query, {
+        requestedBy: member.user,
+        searchEngine: 'soundcloud'
+      });
+    }
+
+    if (!searchResult.hasTracks()) {
+      throw new Error('No audio tracks found across YouTube or SoundCloud for that search query.');
     }
 
     try {

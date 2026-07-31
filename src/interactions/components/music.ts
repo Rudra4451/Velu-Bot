@@ -1,4 +1,4 @@
-import { ButtonInteraction } from 'discord.js';
+import { ButtonInteraction, StringSelectMenuInteraction, GuildMember, TextChannel } from 'discord.js';
 import { musicService, createMusicControlRow } from '../../services/music.js';
 import { UIFactory } from '../../ui/factory.js';
 import { middleware } from '../../utils/middleware.js';
@@ -7,7 +7,7 @@ import type { VeluClient, ComponentContext } from '../../types/index.js';
 export const namespace = 'music';
 
 export async function execute(
-  interaction: ButtonInteraction,
+  interaction: ButtonInteraction | StringSelectMenuInteraction,
   payload: ComponentContext,
   client: VeluClient
 ): Promise<void> {
@@ -18,7 +18,29 @@ export async function execute(
 
   try {
     switch (action) {
+      case 'select_song': {
+        if (!interaction.isStringSelectMenu()) return;
+        const selectedUrl = interaction.values[0];
+        const member = interaction.member as GuildMember;
+        const textChannel = interaction.channel as TextChannel;
+
+        if (!member?.voice?.channel) {
+          const embed = UIFactory.warning('Voice Channel Required', 'You must be in a voice channel to play music.');
+          await interaction.update({ embeds: [embed], components: [] });
+          return;
+        }
+
+        await interaction.deferUpdate();
+
+        const result = await musicService.play(member, selectedUrl, textChannel);
+        const embed = UIFactory.success('Music Queued', result.message, { thumbnail: result.thumbnail });
+        
+        await interaction.editReply({ embeds: [embed], components: [] });
+        break;
+      }
+
       case 'toggle_pause': {
+        if (!interaction.isButton()) return;
         const { isPaused } = musicService.togglePause(guildId);
         const queueInfo = musicService.getQueueInfo(guildId);
         const repeatMode = queueInfo ? queueInfo.repeatMode : 0;
@@ -53,6 +75,7 @@ export async function execute(
       }
 
       case 'loop': {
+        if (!interaction.isButton()) return;
         const newMode = musicService.toggleLoop(guildId);
         const queueInfo = musicService.getQueueInfo(guildId);
         const isPaused = queueInfo ? queueInfo.paused : false;
