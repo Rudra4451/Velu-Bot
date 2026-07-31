@@ -106,7 +106,8 @@ async function bootstrap() {
     }
 
     // 4. Start API Server
-    startApiServer(client);
+    const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
+    startApiServer(client, port);
   } catch (error) {
     logger.error('Fatal bootstrapping error:', error);
     process.exit(1);

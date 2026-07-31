@@ -13,8 +13,10 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Serve static website
-app.use(express.static(path.join(__dirname, '../../public')));
+// Health check endpoint for Render / cloud monitoring
+app.get('/healthz', (req, res) => {
+  res.status(200).send('OK');
+});
 
 export function startApiServer(client: VeluClient, port: number = 3001) {
   // Public Bot Stats
