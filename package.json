@@ -15,6 +15,7 @@
     "@discord-player/extractor": "^7.2.0",
     "@discordjs/voice": "^0.19.2",
     "@distube/ytdl-core": "^4.16.12",
+    "@evan/opus": "^1.0.3",
     "@supabase/supabase-js": "^2.110.3",
     "cors": "^2.8.6",
     "discord-player": "^7.2.0",

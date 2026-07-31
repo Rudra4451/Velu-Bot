@@ -58,8 +58,8 @@ export async function execute(
         const isPaused = queueInfo ? queueInfo.paused : false;
         const newRow = createMusicControlRow(isPaused, newMode);
 
-        const modeNames = ['Off 🛑', 'Track Loop 🔂', 'Queue Loop 🔁'];
-        const embed = UIFactory.info('Loop Mode Updated', `Repeat mode set to: **${modeNames[newMode] || 'Off'}**`);
+        const modeNames = ['Off 🛑', 'Track Loop 🔂', 'Queue Loop 🔁', 'Autoplay 📻 (Plays related songs)'];
+        const embed = UIFactory.info('Loop / Autoplay Mode Updated', `Mode set to: **${modeNames[newMode] || 'Off'}**`);
         
         await interaction.update({ components: [newRow] });
         await interaction.followUp({ embeds: [embed], ephemeral: true });

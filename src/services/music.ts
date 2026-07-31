@@ -59,7 +59,7 @@ export function createMusicControlRow(paused: boolean = false, repeatMode: numbe
     .setLabel('Stop')
     .setStyle(ButtonStyle.Danger);
 
-  const loopEmojis = ['Off', 'Track', 'Queue'];
+  const loopEmojis = ['Off', 'Track', 'Queue', 'Autoplay 📻'];
   const loopBtn = new ButtonBuilder()
     .setCustomId(stateManager.create('music', 'loop'))
     .setEmoji('🔁')
@@ -232,10 +232,20 @@ export const musicService = {
     let nextMode: any = QueueRepeatMode.OFF;
     if (queue.repeatMode === QueueRepeatMode.OFF) nextMode = QueueRepeatMode.TRACK;
     else if (queue.repeatMode === QueueRepeatMode.TRACK) nextMode = QueueRepeatMode.QUEUE;
+    else if (queue.repeatMode === QueueRepeatMode.QUEUE) nextMode = QueueRepeatMode.AUTOPLAY;
     else nextMode = QueueRepeatMode.OFF;
 
     queue.setRepeatMode(nextMode);
     return Number(nextMode);
+  },
+
+  toggleAutoplay(guildId: string): boolean {
+    const queue = player.nodes.get(guildId);
+    if (!queue) throw new Error('No active queue found.');
+    const isAutoplay = queue.repeatMode === QueueRepeatMode.AUTOPLAY;
+    const nextMode = isAutoplay ? QueueRepeatMode.OFF : QueueRepeatMode.AUTOPLAY;
+    queue.setRepeatMode(nextMode as any);
+    return !isAutoplay;
   },
 
   shuffle(guildId: string): number {
