@@ -1,7 +1,12 @@
-# Use official Node.js LTS alpine image for ultra-light production footprint
-FROM node:20-alpine AS builder
+# Use Node.js 22 alpine image for modern dependencies
+FROM node:22-alpine AS builder
 
 WORKDIR /app
+
+# Install python3 and build tools for youtube-dl-exec and native packages
+RUN apk add --no-cache python3 make g++
+
+ENV YOUTUBE_DL_SKIP_PYTHON_CHECK=1
 
 # Copy package manifests
 COPY package*.json tsconfig.json ./
@@ -16,17 +21,19 @@ COPY . .
 RUN npm run build
 
 # Production stage
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 
 WORKDIR /app
 
-# Install FFmpeg and Opus build dependencies for high-fidelity audio playback
+# Install FFmpeg, Python3, and native build dependencies for audio playback
 RUN apk add --no-cache ffmpeg python3 make g++
+
+ENV YOUTUBE_DL_SKIP_PYTHON_CHECK=1
 
 COPY package*.json ./
 
 # Install only production dependencies
-RUN npm ci --only=production
+RUN npm ci --omit=dev
 
 # Copy built dist files from builder stage
 COPY --from=builder /app/dist ./dist
