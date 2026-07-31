@@ -3,10 +3,11 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# Install python3 and build tools for youtube-dl-exec and native packages
-RUN apk add --no-cache python3 make g++
+# Install python3, yt-dlp, and build tools
+RUN apk add --no-cache python3 make g++ yt-dlp
 
 ENV YOUTUBE_DL_SKIP_PYTHON_CHECK=1
+ENV YOUTUBE_DL_SKIP_DOWNLOAD=true
 
 # Copy package manifests
 COPY package*.json tsconfig.json ./
@@ -25,10 +26,11 @@ FROM node:22-alpine AS runner
 
 WORKDIR /app
 
-# Install FFmpeg, Python3, and native build dependencies for audio playback
-RUN apk add --no-cache ffmpeg python3 make g++
+# Install FFmpeg, Python3, yt-dlp, and native build dependencies for audio playback
+RUN apk add --no-cache ffmpeg python3 make g++ yt-dlp
 
 ENV YOUTUBE_DL_SKIP_PYTHON_CHECK=1
+ENV YOUTUBE_DL_SKIP_DOWNLOAD=true
 
 COPY package*.json ./
 
