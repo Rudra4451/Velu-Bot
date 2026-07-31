@@ -47,6 +47,12 @@ export const permissionManager = {
 
     const guildMember = member as GuildMember;
 
+    // Music Command Voice Channel Protection
+    if (moduleName === 'Music') {
+      const isVoiceAllowed = await this.checkMusicVoiceChannel(interaction);
+      if (!isVoiceAllowed) return false;
+    }
+
     // 1. Bot Owner Bypass
     const ownerId = await getBotOwnerId(client);
     if (ownerId && user.id === ownerId) {
@@ -179,8 +185,37 @@ export const permissionManager = {
   },
 
   getPermissionName(perm: PermissionResolvable): string {
-    return Object.keys(PermissionFlagsBits).find(
-      key => PermissionFlagsBits[key as keyof typeof PermissionFlagsBits] === perm
-    ) || String(perm);
+    if (typeof perm === 'string') return perm;
+    if (typeof perm === 'bigint') return perm.toString();
+    return 'Special Permission';
+  },
+
+  async checkMusicVoiceChannel(interaction: any): Promise<boolean> {
+    const guild = interaction.guild;
+    const member = interaction.member as GuildMember;
+    if (!guild || !member) return true;
+
+    const memberVoiceChannel = member.voice?.channel;
+    const botVoiceChannel = guild.members.me?.voice?.channel;
+
+    if (!memberVoiceChannel) {
+      const embed = UIFactory.warning(
+        'Voice Channel Required',
+        '🔒 You must join a voice channel to use music commands and controls.'
+      );
+      await middleware.safeReply(interaction, { embeds: [embed], ephemeral: true });
+      return false;
+    }
+
+    if (botVoiceChannel && memberVoiceChannel.id !== botVoiceChannel.id) {
+      const embed = UIFactory.warning(
+        'Voice Channel Mismatch',
+        `🔒 You must be in the same voice channel (<#${botVoiceChannel.id}>) as Velu to use music commands!`
+      );
+      await middleware.safeReply(interaction, { embeds: [embed], ephemeral: true });
+      return false;
+    }
+
+    return true;
   }
 };

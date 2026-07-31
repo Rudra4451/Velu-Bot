@@ -2,6 +2,7 @@ import { ButtonInteraction, StringSelectMenuInteraction, GuildMember, TextChanne
 import { musicService, createMusicControlRow } from '../../services/music.js';
 import { UIFactory } from '../../ui/factory.js';
 import { middleware } from '../../utils/middleware.js';
+import { permissionManager } from '../../utils/permissionManager.js';
 import type { VeluClient, ComponentContext } from '../../types/index.js';
 
 export const namespace = 'music';
@@ -12,6 +13,9 @@ export async function execute(
   client: VeluClient
 ): Promise<void> {
   if (!interaction.guild) return;
+
+  const isVoiceAllowed = await permissionManager.checkMusicVoiceChannel(interaction);
+  if (!isVoiceAllowed) return;
 
   const { action } = payload;
   const guildId = interaction.guild.id;
