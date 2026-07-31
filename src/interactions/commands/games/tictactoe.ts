@@ -22,6 +22,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   if (opponent.id === interaction.user.id) {
     const errEmbed = UIFactory.warning('Invalid Opponent', 'You cannot play Tic Tac Toe against yourself.');
     await middleware.safeReply(interaction, { embeds: [errEmbed], ephemeral: true });
+    return;
   }
 
   const game = {

@@ -470,6 +470,11 @@ export const execute: ComponentHandler['execute'] = (async (interaction: any, co
       return interaction.reply({ content: 'This Memory Match game belongs to someone else!', ephemeral: true });
     }
 
+    // Prevent selecting already revealed or currently selected cards
+    if (game.revealed[idx] || game.selected.includes(idx)) {
+      return interaction.reply({ content: 'That card is already flipped!', ephemeral: true });
+    }
+
     // If 2 are already face-up and unmatched, start a new pair selection
     if (game.selected.length === 2) {
       game.selected = [idx];
@@ -480,7 +485,7 @@ export const execute: ComponentHandler['execute'] = (async (interaction: any, co
     if (game.selected.length === 2) {
       game.attempts++;
       const [first, second] = game.selected;
-      if (game.deck[first] === game.deck[second]) {
+      if (game.deck[first] === game.deck[second] && first !== second) {
         // Match!
         game.revealed[first] = true;
         game.revealed[second] = true;

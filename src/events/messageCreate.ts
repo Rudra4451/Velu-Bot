@@ -8,29 +8,37 @@ import type { VeluClient } from '../types/index.js';
 const afkCooldowns = new Map<string, number>();
 const COOLDOWN_MS = 60 * 1000; // 1 minute cooldown per mentioner-mentioned pair
 
+// ── Performance: Periodic AFK cooldown cleanup instead of letting it grow unbounded ──
+let lastAfkCleanup = 0;
+const AFK_CLEANUP_INTERVAL_MS = 300_000; // 5 minutes
+
 // Automod: spam detection map — key is "guildId:userId" -> array of timestamps
 const spamTracker = new Map<string, number[]>();
 const SPAM_THRESHOLD = 5; // messages
 const SPAM_WINDOW_MS = 5 * 1000; // within 5 seconds
+
+// ── Performance: Pre-compiled regex (compiled once, not per message) ──
 const INVITE_REGEX = /(discord\.gg|discord\.com\/invite)\/[a-zA-Z0-9]+/i;
 
 export const name = 'messageCreate';
 export const once = false;
 
 export async function execute(message: Message, client: VeluClient): Promise<void> {
+  // Fast exit for bots and DMs
   if (message.author.bot || !message.guild) return;
-
-  // 0. Prefix command routing (runs first)
-  await handlePrefixCommand(message);
 
   const now = Date.now();
   const guildId = message.guild.id;
   const userId = message.author.id;
 
-  // 1. Welcome Back: check if sender is AFK
-  const senderAFK = db.getAFK(message.author.id);
+  // ── Performance: Run prefix command and AFK check concurrently ──
+  // Prefix commands don't depend on AFK state, so they can run in parallel
+  const prefixPromise = handlePrefixCommand(message);
+
+  // 1. Welcome Back: check if sender is AFK (in-memory lookup, O(1))
+  const senderAFK = db.getAFK(userId);
   if (senderAFK) {
-    db.clearAFK(message.author.id);
+    db.clearAFK(userId);
     
     const durationMs = now - senderAFK.timestamp;
     const minutes = Math.floor(durationMs / (1000 * 60));
@@ -48,19 +56,27 @@ export async function execute(message: Message, client: VeluClient): Promise<voi
       'Welcome Back!',
       `I have removed your AFK status. You were gone for **${durationText}**.`
     );
-    await message.reply({ embeds: [embed] }).then(msg => {
+    message.reply({ embeds: [embed] }).then(msg => {
       setTimeout(() => msg.delete().catch(() => {}), 5000);
-    });
+    }).catch(() => {});
   }
 
   // 2. Mentions Check: check if anyone mentioned is AFK
   if (message.mentions.users.size > 0) {
-    for (const [userId, user] of message.mentions.users) {
-      if (userId === message.author.id) continue;
+    // Lazy cleanup of AFK cooldowns
+    if (now - lastAfkCleanup > AFK_CLEANUP_INTERVAL_MS) {
+      lastAfkCleanup = now;
+      for (const [key, ts] of afkCooldowns) {
+        if (now - ts > COOLDOWN_MS) afkCooldowns.delete(key);
+      }
+    }
 
-      const afkData = db.getAFK(userId);
+    for (const [mentionedId, user] of message.mentions.users) {
+      if (mentionedId === userId) continue;
+
+      const afkData = db.getAFK(mentionedId);
       if (afkData) {
-        const cooldownKey = `${message.author.id}:${userId}`;
+        const cooldownKey = `${userId}:${mentionedId}`;
         const lastNotified = afkCooldowns.get(cooldownKey) || 0;
 
         if (now - lastNotified > COOLDOWN_MS) {
@@ -122,7 +138,8 @@ export async function execute(message: Message, client: VeluClient): Promise<voi
       }
 
       if (shouldDelete) {
-        await message.delete().catch(() => {});
+        // Fire-and-forget: don't await these
+        message.delete().catch(() => {});
         message.author.send({
           embeds: [UIFactory.warning(
             '🛡️ Automod Warning',
@@ -132,4 +149,7 @@ export async function execute(message: Message, client: VeluClient): Promise<voi
       }
     }
   }
+
+  // Ensure prefix command handler finished
+  await prefixPromise;
 }

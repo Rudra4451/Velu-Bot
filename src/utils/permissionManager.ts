@@ -7,25 +7,27 @@ import type { AuthorizeOptions, HierarchyOptions } from '../types/index.js';
 
 let botOwnerId: string | null = null;
 
-/**
- * Fetch the bot owner ID dynamically if not already cached.
- */
-async function getBotOwnerId(client: ChatInputCommandInteraction['client']): Promise<string | null> {
-  if (botOwnerId) return botOwnerId;
+export async function initBotOwner(client: any): Promise<void> {
   try {
-    if (!client.application) return null;
-    const app = await client.application.fetch();
-    if ('members' in (app.owner ?? {})) {
-      // Team owner
-      botOwnerId = (app.owner as any)?.ownerId ?? null;
-    } else {
-      // Single user owner
-      botOwnerId = (app.owner as any)?.id ?? null;
+    if (client.application) {
+      const app = await client.application.fetch();
+      if (app?.owner) {
+        botOwnerId = 'members' in app.owner ? (app.owner as any).ownerId ?? null : app.owner.id ?? null;
+      }
     }
   } catch {
-    // Fail silently, fallback to standard permissions
+    // Ignore fetch errors at startup
   }
-  return botOwnerId;
+}
+
+function getBotOwnerId(client: ChatInputCommandInteraction['client']): string | null {
+  if (botOwnerId) return botOwnerId;
+  if (client.application?.owner) {
+    const owner = client.application.owner;
+    botOwnerId = 'members' in owner ? (owner as any).ownerId ?? null : owner.id ?? null;
+    return botOwnerId;
+  }
+  return null;
 }
 
 export const permissionManager = {

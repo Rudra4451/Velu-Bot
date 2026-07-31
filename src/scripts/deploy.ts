@@ -50,7 +50,7 @@ for (const file of commandFiles) {
   console.log(`  ✓ Queued: /${command.data.name}`);
 }
 
-const rest = new REST({ version: '10' }).setToken(DISCORD_TOKEN);
+const rest = new REST({ version: '10', timeout: 60000 }).setToken(DISCORD_TOKEN);
 
 if (DISCORD_GUILD_ID) {
   console.log(`\n🚀 Registering ${commandData.length} command(s) to guild ${DISCORD_GUILD_ID}...`);

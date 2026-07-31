@@ -25,6 +25,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   if (opponent.id === interaction.user.id) {
     const errEmbed = UIFactory.warning('Invalid Opponent', 'You cannot play Connect Four against yourself.');
     await middleware.safeReply(interaction, { embeds: [errEmbed], ephemeral: true });
+    return;
   }
 
   const game = {

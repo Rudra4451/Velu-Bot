@@ -75,7 +75,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     return;
   }
 
-  // Interactive Multi-Source Search Selection for Text Queries
+  // Search & auto-play top match for text queries
   try {
     const tracks = await musicService.searchTracks(query, interaction.user);
     if (tracks.length === 0) {
@@ -83,40 +83,11 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       return void await interaction.editReply({ embeds: [embed] });
     }
 
-    if (tracks.length === 1) {
-      const result = await musicService.play(member, tracks[0].url, textChannel);
-      const embed = UIFactory.success('Music Queued', result.message, { thumbnail: result.thumbnail });
-      return void await interaction.editReply({ embeds: [embed] });
-    }
-
-    // Build interactive Select Menu for Top 5 Search Results
-    const selectOptions = tracks.slice(0, 5).map((t, idx) => {
-      const label = `${idx + 1}. ${t.title}`.substring(0, 100);
-      const description = `By ${t.author || 'Artist'} • Duration: ${t.duration || 'Live'}`.substring(0, 100);
-      return new StringSelectMenuOptionBuilder()
-        .setLabel(label)
-        .setDescription(description)
-        .setValue(t.url)
-        .setEmoji('🎵');
-    });
-
-    const selectMenu = new StringSelectMenuBuilder()
-      .setCustomId(stateManager.create('music', 'select_song'))
-      .setPlaceholder('🔍 Select the exact song you want to play...')
-      .addOptions(selectOptions);
-
-    const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu);
-
-    const embed = UIFactory.premium(
-      '🔍 Multiple Results Found',
-      `Found **${tracks.length}** search matches for **"${query}"**.\n\nPlease select your preferred version from the menu below:`,
-      {
-        thumbnail: tracks[0].thumbnail,
-        footerText: 'Select a song within 60 seconds • Velu Music ✨'
-      }
-    );
-
-    await interaction.editReply({ embeds: [embed], components: [row] });
+    // Play the top #1 matching song immediately
+    const topTrack = tracks[0];
+    const result = await musicService.play(member, topTrack.url, textChannel);
+    const embed = UIFactory.success('Music Queued', result.message, { thumbnail: result.thumbnail });
+    await interaction.editReply({ embeds: [embed] });
   } catch (error: any) {
     const embed = UIFactory.error('Search Error', error.message || 'Failed to process song search.');
     await interaction.editReply({ embeds: [embed] });

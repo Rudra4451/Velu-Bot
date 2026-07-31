@@ -1,4 +1,3 @@
-import { Collection } from 'discord.js';
 import type { Interaction, ChatInputCommandInteraction } from 'discord.js';
 import { logger } from '../utils/logger.js';
 import { UIFactory } from '../ui/factory.js';
@@ -7,20 +6,30 @@ import { LIMITS } from '../constants/index.js';
 import { middleware } from '../utils/middleware.js';
 import type { VeluClient, Command } from '../types/index.js';
 
-// Stores cooldown expiration timestamps: Map<cooldownKey, expirationTimestamp>
-const cooldowns = new Collection<string, number>();
+// ── Performance: Fixed-size cooldown map with lazy expiry ──────────
+// Instead of sweeping ALL entries on every interaction, we only check
+// the specific user's cooldown key and let stale entries expire naturally.
+const cooldowns = new Map<string, number>();
+
+// Periodic sweep every 60 seconds instead of every interaction
+let lastSweep = Date.now();
+const SWEEP_INTERVAL_MS = 60_000;
+
+function lazySweepCooldowns(): void {
+  const now = Date.now();
+  if (now - lastSweep < SWEEP_INTERVAL_MS) return;
+  lastSweep = now;
+
+  for (const [key, expiry] of cooldowns) {
+    if (now >= expiry) cooldowns.delete(key);
+  }
+}
 
 export async function handleInteraction(interaction: Interaction, client: VeluClient): Promise<void> {
-  const now = Date.now();
+  // Lazy sweep — runs at most once per minute, not every interaction
+  lazySweepCooldowns();
 
-  // 1. Clean up expired cooldowns to prevent memory leaks without background timers
-  for (const [key, expirationTime] of cooldowns.entries()) {
-    if (now >= expirationTime) {
-      cooldowns.delete(key);
-    }
-  }
-
-  // 2. Slash Commands
+  // ── Slash Commands ──
   if (interaction.isChatInputCommand()) {
     const command = client.commands.get(interaction.commandName) as Command | undefined;
     if (!command) {
@@ -32,20 +41,19 @@ export async function handleInteraction(interaction: Interaction, client: VeluCl
     const authorized = await middleware.checkPermissions(interaction, command);
     if (!authorized) return;
 
-    // Cooldown Validation Middleware
+    // Cooldown — O(1) lookup, no sweep
     const cooldownAmount = command.cooldown ?? LIMITS.COOLDOWN_DEFAULT_MS;
     const cooldownKey = `${interaction.user.id}:${command.data.name}`;
+    const now = Date.now();
 
-    if (cooldowns.has(cooldownKey)) {
-      const expirationTime = cooldowns.get(cooldownKey)!;
-      if (now < expirationTime) {
-        const timeLeft = ((expirationTime - now) / 1000).toFixed(1);
-        const embed = UIFactory.warning(
-          'Command on Cooldown',
-          `Please wait **${timeLeft}s** before using the \`/${command.data.name}\` command again.`
-        );
-        return void await middleware.safeReply(interaction, { embeds: [embed], ephemeral: true });
-      }
+    const expirationTime = cooldowns.get(cooldownKey);
+    if (expirationTime !== undefined && now < expirationTime) {
+      const timeLeft = ((expirationTime - now) / 1000).toFixed(1);
+      const embed = UIFactory.warning(
+        'Command on Cooldown',
+        `Please wait **${timeLeft}s** before using the \`/${command.data.name}\` command again.`
+      );
+      return void await middleware.safeReply(interaction, { embeds: [embed], ephemeral: true });
     }
 
     cooldowns.set(cooldownKey, now + cooldownAmount);
@@ -64,7 +72,7 @@ export async function handleInteraction(interaction: Interaction, client: VeluCl
     return;
   }
 
-  // 3. Buttons, Select Menus, Modals
+  // ── Buttons, Select Menus, Modals ──
   if (
     interaction.isButton() ||
     interaction.isAnySelectMenu() ||
@@ -114,7 +122,7 @@ export async function handleInteraction(interaction: Interaction, client: VeluCl
     return;
   }
 
-  // 4. Autocomplete
+  // ── Autocomplete ──
   if (interaction.isAutocomplete()) {
     const command = client.commands.get(interaction.commandName) as Command | undefined;
     if (!command || !command.autocomplete) return;

@@ -2,12 +2,17 @@ import { Events, ActivityType } from 'discord.js';
 import { logger } from '../utils/logger.js';
 import type { VeluClient, BotEvent } from '../types/index.js';
 
+import { initBotOwner } from '../utils/permissionManager.js';
+
 export const name = Events.ClientReady;
 export const once = true;
 
 export async function execute(client: VeluClient): Promise<void> {
   logger.info(`🤖 Bot logged in successfully as: ${client.user?.tag}`);
   
+  // Pre-fetch owner ID for zero-latency permission checks
+  initBotOwner(client).catch(() => {});
+
   // Set premium cinematic status / presence
   client.user?.setPresence({
     activities: [{

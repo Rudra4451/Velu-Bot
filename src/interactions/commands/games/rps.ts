@@ -21,6 +21,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   if (opponent.id === interaction.user.id) {
     const errEmbed = UIFactory.warning('Invalid Opponent', 'You cannot play Rock Paper Scissors against yourself.');
     await middleware.safeReply(interaction, { embeds: [errEmbed], ephemeral: true });
+    return;
   }
 
   // Store only serializable primitives — Discord User objects cannot be JSON round-tripped

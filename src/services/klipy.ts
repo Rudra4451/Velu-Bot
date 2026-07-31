@@ -77,28 +77,9 @@ const FALLBACK_GIFS: Record<string, string[]> = {
 
 const pickRandom = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
 
-interface KlipyGifFile {
-  gif?: { url?: string };
-}
-
-interface KlipyGifResult {
-  file?: {
-    md?: KlipyGifFile;
-    hd?: KlipyGifFile;
-    sm?: KlipyGifFile;
-  };
-}
-
-interface KlipyResponse {
-  data?: {
-    data?: KlipyGifResult[];
-  };
-}
-
-async function fetchFromKlipy(query: string, retries: number = 1): Promise<string | null> {
-  if (!config.KLIPY_API_KEY) return null;
-
-  const url = `https://api.klipy.com/api/v1/${config.KLIPY_API_KEY}/gifs/search?q=${encodeURIComponent(query)}`;
+async function fetchFromTenor(query: string, retries: number = 1): Promise<string | null> {
+  // Public Tenor V1 Key commonly used for open integrations
+  const url = `https://g.tenor.com/v1/search?q=${encodeURIComponent(query)}&key=LIVDSRZULELA&limit=15&media_filter=minimal`;
 
   try {
     const controller = new AbortController();
@@ -109,16 +90,16 @@ async function fetchFromKlipy(query: string, retries: number = 1): Promise<strin
 
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-    const json = (await res.json()) as KlipyResponse;
-    const results = json?.data?.data;
+    const json = (await res.json()) as any;
+    const results = json?.results;
     if (!results?.length) return null;
 
     const pick = results[Math.floor(Math.random() * Math.min(results.length, 10))];
-    return pick?.file?.md?.gif?.url ?? pick?.file?.hd?.gif?.url ?? pick?.file?.sm?.gif?.url ?? null;
+    return pick?.media?.[0]?.gif?.url || null;
   } catch (err: unknown) {
-    logger.warn(`Klipy request failed for "${query}": ${(err as Error).message}`);
+    logger.warn(`Tenor request failed for "${query}": ${(err as Error).message}`);
     if (retries > 0) {
-      return fetchFromKlipy(query, retries - 1);
+      return fetchFromTenor(query, retries - 1);
     }
     return null;
   }
@@ -129,11 +110,16 @@ export const klipyService = {
    * Returns a GIF / Sticker URL for the given category/query.
    */
   async search(category: string, query: string): Promise<string> {
-    const cacheKey = `${category}:${query}`;
+    const cacheKey = `tenor:${category}:${query}`;
     const cached = cacheGet(cacheKey);
     if (cached) return cached;
 
-    const apiResult = await fetchFromKlipy(query);
+    // We append "anime" to specific action queries for better styling
+    const searchQuery = ['hug', 'pat', 'slap', 'kiss', 'dance'].includes(query.toLowerCase()) 
+      ? `anime ${query}` 
+      : query;
+
+    const apiResult = await fetchFromTenor(searchQuery);
     const url = apiResult ?? pickRandom(FALLBACK_GIFS[category] ?? FALLBACK_GIFS.hug);
 
     cacheSet(cacheKey, url);

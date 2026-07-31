@@ -1,0 +1,7 @@
+services:
+  - type: worker
+    name: velu-discord-bot
+    env: docker
+    dockerfilePath: Dockerfile
+    plan: free
+    autoDeploy: true
