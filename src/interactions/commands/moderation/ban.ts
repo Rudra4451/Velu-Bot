@@ -2,7 +2,6 @@ import { SlashCommandBuilder, PermissionFlagsBits, ChatInputCommandInteraction }
 import { UIFactory } from '../../../ui/factory.js';
 import { permissionManager } from '../../../utils/permissionManager.js';
 import { actionLogger } from '../../../utils/actionLogger.js';
-import { klipyService } from '../../../services/klipy.js';
 import { middleware } from '../../../utils/middleware.js';
 
 export const module = 'Moderation';
@@ -61,9 +60,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       return;
     }
 
-    const gifUrl = await klipyService.search('ban', 'anime ban hammer punch');
     const embed = UIFactory.success('User Banned', `${targetUser.tag} has been banned.\n**Reason:** ${reason}`, {
-      image: gifUrl || undefined, timestamp: true
+      timestamp: true
     });
     await middleware.safeReply(interaction, { embeds: [embed] });
 

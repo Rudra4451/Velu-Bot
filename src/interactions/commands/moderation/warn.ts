@@ -3,7 +3,6 @@ import { db } from '../../../state/db.js';
 import { UIFactory } from '../../../ui/factory.js';
 import { permissionManager } from '../../../utils/permissionManager.js';
 import { actionLogger } from '../../../utils/actionLogger.js';
-import { klipyService } from '../../../services/klipy.js';
 import { middleware } from '../../../utils/middleware.js';
 
 export const module = 'Moderation';
@@ -50,11 +49,10 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
     const warnRecord = db.addWarning(interaction.guild.id, target.id, interaction.user.id, reason);
     const userWarns = db.getWarnings(interaction.guild.id, target.id);
-    const gifUrl = await klipyService.search('warning', 'anime warning angry mad');
 
     const embed = UIFactory.success('Member Warned',
       `${target} has been warned.\n**Reason:** ${reason}\nTotal warnings: **${userWarns.length}**`,
-      { image: gifUrl || undefined, footerText: `Warn ID: ${warnRecord.id}`, timestamp: true }
+      { footerText: `Warn ID: ${warnRecord.id}`, timestamp: true }
     );
     await middleware.safeReply(interaction, { embeds: [embed] });
 

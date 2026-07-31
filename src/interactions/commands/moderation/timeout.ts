@@ -2,7 +2,6 @@ import { SlashCommandBuilder, PermissionFlagsBits, ChatInputCommandInteraction }
 import { UIFactory } from '../../../ui/factory.js';
 import { permissionManager } from '../../../utils/permissionManager.js';
 import { actionLogger } from '../../../utils/actionLogger.js';
-import { klipyService } from '../../../services/klipy.js';
 import { middleware } from '../../../utils/middleware.js';
 
 export const module = 'Moderation';
@@ -66,12 +65,11 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       return;
     }
 
-    const gifUrl = await klipyService.search('timeout', 'anime silence quiet tape');
     const durationText = duration < 3600 ? `${duration / 60} minutes` : `${duration / 3600} hours`;
 
     const embed = UIFactory.success('Member Timed Out',
       `${target.user.tag} has been timed out for **${durationText}**.\n**Reason:** ${reason}`,
-      { image: gifUrl || undefined, timestamp: true }
+      { timestamp: true }
     );
     await middleware.safeReply(interaction, { embeds: [embed] });
 

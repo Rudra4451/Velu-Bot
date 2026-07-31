@@ -1,6 +1,6 @@
 import { mkdir } from 'fs/promises';
-import { join } from 'path';
-import { pathToFileURL } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
+import { dirname, join } from 'path';
 import { REST, Routes } from 'discord.js';
 import { logger } from '../utils/logger.js';
 import { config } from '../config/index.js';
@@ -9,11 +9,15 @@ import type { VeluClient, Command } from '../types/index.js';
 
 export async function loadCommands(client: VeluClient): Promise<void> {
   client.commands = new Map() as VeluClient['commands'];
-  const commandsDir = join(process.cwd(), 'src', 'interactions', 'commands');
+  
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = dirname(__filename);
+  const commandsDir = join(__dirname, '..', 'interactions', 'commands');
+  const ext = __filename.endsWith('.ts') ? '.ts' : '.js';
 
   try {
     await mkdir(commandsDir, { recursive: true });
-    const commandFiles = await scanDirectory(commandsDir);
+    const commandFiles = await scanDirectory(commandsDir, { extension: ext });
     const commandData: ReturnType<Command['data']['toJSON']>[] = [];
 
     for (const file of commandFiles) {

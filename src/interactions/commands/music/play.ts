@@ -25,7 +25,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   try {
     const result = await musicService.play(interaction.member, query, textChannel);
-    const embed = UIFactory.success('Music Queued', result);
+    const embed = UIFactory.success('Music Queued', result.message, { thumbnail: result.thumbnail });
     await interaction.editReply({ embeds: [embed] });
   } catch (error: any) {
     const embed = UIFactory.error('Playback Error', error.message);

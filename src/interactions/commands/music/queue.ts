@@ -11,28 +11,27 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!interaction.guild) return;
-  if (!interaction.guild) return;
   
-  const queue = musicService.getQueue(interaction.guild.id);
+  const queueInfo = musicService.getQueueInfo(interaction.guild.id);
   
-  if (!queue || queue.songs.length === 0) {
+  if (!queueInfo || queueInfo.songs.length === 0) {
     const embed = UIFactory.warning('Empty Queue', 'There are no songs in the queue.');
     await middleware.safeReply(interaction, { embeds: [embed] });
     return;
   }
 
-  const np = queue.songs[0];
-  let description = `**Now Playing:**\n[${np.title}](${np.url}) - \`${np.duration}\`\n\n**Up Next:**\n`;
+  const np = queueInfo.songs[0];
+  let description = `**Now Playing:**\n🎶 [${np.title}](${np.url}) - \`${np.duration}\`\n\n**Up Next:**\n`;
   
-  if (queue.songs.length === 1) {
+  if (queueInfo.songs.length === 1) {
     description += '*No more songs in queue.*';
   } else {
-    for (let i = 1; i < Math.min(queue.songs.length, 11); i++) {
-      const song = queue.songs[i];
+    for (let i = 1; i < Math.min(queueInfo.songs.length, 11); i++) {
+      const song = queueInfo.songs[i];
       description += `**${i}.** [${song.title}](${song.url}) - \`${song.duration}\`\n`;
     }
-    if (queue.songs.length > 11) {
-      description += `\n*...and ${queue.songs.length - 11} more.*`;
+    if (queueInfo.songs.length > 11) {
+      description += `\n*...and ${queueInfo.songs.length - 11} more tracks.*`;
     }
   }
 

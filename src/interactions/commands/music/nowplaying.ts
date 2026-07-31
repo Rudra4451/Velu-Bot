@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, ChatInputCommandInteraction } from 'discord.js';
-import { musicService } from '../../../services/music.js';
+import { musicService, createMusicControlRow } from '../../../services/music.js';
 import { UIFactory } from '../../../ui/factory.js';
 import { middleware } from '../../../utils/middleware.js';
 
@@ -7,29 +7,35 @@ export const module = 'Music';
 
 export const data = new SlashCommandBuilder()
   .setName('nowplaying')
-  .setDescription('See the currently playing song.');
+  .setDescription('See the currently playing song and playback controls.');
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!interaction.guild) return;
-  if (!interaction.guild) return;
   
-  const queue = musicService.getQueue(interaction.guild.id);
+  const queueInfo = musicService.getQueueInfo(interaction.guild.id);
   
-  if (!queue || queue.songs.length === 0 || !queue.playing) {
+  if (!queueInfo || queueInfo.songs.length === 0 || !queueInfo.playing) {
     const embed = UIFactory.warning('Nothing Playing', 'There is no music playing right now.');
     await middleware.safeReply(interaction, { embeds: [embed] });
     return;
   }
 
-  const song = queue.songs[0];
+  const song = queueInfo.songs[0];
+  const repeatModes = ['Off', 'Track', 'Queue'];
 
   const embed = UIFactory.premium(
-    '🎵 Now Playing',
-    `**[${song.title}](${song.url})**\n\n**Duration:** ${song.duration}\n**Requested by:** ${song.requester}`,
+    '🎶 Now Playing',
+    `**[${song.title}](${song.url})**\n\n` +
+    `👤 **Artist:** \`${song.author || 'Unknown'}\`\n` +
+    `⏱️ **Duration:** \`${song.duration}\`\n` +
+    `🎧 **Requested by:** \`${song.requester}\`\n\n` +
+    `🔊 **Volume:** \`${queueInfo.volume}%\`   |   🔁 **Loop:** \`${repeatModes[queueInfo.repeatMode] || 'Off'}\``,
     {
       thumbnail: song.thumbnail,
+      footerText: 'Velu Music • Interactive Audio Engine ✨'
     }
   );
-  
-  await middleware.safeReply(interaction, { embeds: [embed] });
+
+  const actionRow = createMusicControlRow(queueInfo.paused, queueInfo.repeatMode);
+  await middleware.safeReply(interaction, { embeds: [embed], components: [actionRow] });
 }

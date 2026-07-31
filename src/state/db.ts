@@ -3,11 +3,20 @@ import { supabase } from './supabase.js';
 import { logger } from '../utils/logger.js';
 
 // In-memory data store for configurations (cache layer)
-const configs = new Map<string, GuildConfig>();
-const warnings = new Map<string, Map<string, Warning[]>>();
-const afkStates = new Map<string, AfkData>();
-const permissions = new Map<string, Map<string, string[]>>();
-const economy = new Map<string, Map<string, UserEconomy>>(); // guildId -> userId -> UserEconomy
+const globalAny = global as any;
+if (!globalAny.__veluDbConfigs) {
+  globalAny.__veluDbConfigs = new Map<string, GuildConfig>();
+  globalAny.__veluDbWarnings = new Map<string, Map<string, Warning[]>>();
+  globalAny.__veluDbAfkStates = new Map<string, AfkData>();
+  globalAny.__veluDbPermissions = new Map<string, Map<string, string[]>>();
+  globalAny.__veluDbEconomy = new Map<string, Map<string, UserEconomy>>();
+}
+
+const configs = globalAny.__veluDbConfigs as Map<string, GuildConfig>;
+const warnings = globalAny.__veluDbWarnings as Map<string, Map<string, Warning[]>>;
+const afkStates = globalAny.__veluDbAfkStates as Map<string, AfkData>;
+const permissions = globalAny.__veluDbPermissions as Map<string, Map<string, string[]>>;
+const economy = globalAny.__veluDbEconomy as Map<string, Map<string, UserEconomy>>;
 
 export const db = {
   // --- DATABASE INITIALIZATION FROM SUPABASE ---

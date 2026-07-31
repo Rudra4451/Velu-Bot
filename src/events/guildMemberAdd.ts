@@ -1,6 +1,5 @@
 import { ButtonBuilder, ButtonStyle, ActionRowBuilder, GuildMember } from 'discord.js';
 import { db } from '../state/db.js';
-import { klipyService } from '../services/klipy.js';
 import { actionLogger } from '../utils/actionLogger.js';
 import { UIFactory } from '../ui/factory.js';
 import { logger } from '../utils/logger.js';
@@ -35,11 +34,8 @@ export async function execute(member: GuildMember, client: VeluClient): Promise<
           ? config.welcomeMessage.replace('{member}', `${member}`).replace('{server}', guild.name)
           : `Welcome ${member} to **${guild.name}**! 🌸\nWe're so happy to have you here! Please make sure to read the rules and have fun! ✨`;
 
-        const gifUrl = await klipyService.search('welcome', 'anime welcome cute');
-
         const embed = UIFactory.premium('✦ New Member Joined', welcomeText, {
           thumbnail: member.user.displayAvatarURL({ forceStatic: false } as any),
-          image: gifUrl || undefined,
           timestamp: true,
           footerText: `Member #${guild.memberCount}`,
         });

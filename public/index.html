@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Velu Bot</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="bot-avatar">
+                <!-- Using a cute placeholder icon -->
+                <img src="https://cdn.discordapp.com/embed/avatars/0.png" id="bot-image" alt="Velu Bot">
+            </div>
+            <h1>Velu Bot</h1>
+            <p class="subtitle">Your cute and powerful Discord companion.</p>
+        </header>
+
+        <div class="stats-card">
+            <h2>Bot Specs</h2>
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <span class="stat-value" id="stat-servers">--</span>
+                    <span class="stat-label">Servers</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value" id="stat-users">--</span>
+                    <span class="stat-label">Users</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value" id="stat-commands">--</span>
+                    <span class="stat-label">Commands</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value" id="stat-ping">--ms</span>
+                    <span class="stat-label">Ping</span>
+                </div>
+            </div>
+        </div>
+
+        <a href="https://discord.com/api/oauth2/authorize?client_id=1525432700511453306&permissions=8&scope=bot%20applications.commands" class="add-button" target="_blank">
+            Add to Discord 🌸
+        </a>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

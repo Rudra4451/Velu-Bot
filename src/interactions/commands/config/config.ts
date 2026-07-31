@@ -2,7 +2,6 @@ import { SlashCommandBuilder, PermissionFlagsBits, ChatInputCommandInteraction }
 import { db } from '../../../state/db.js';
 import { UIFactory } from '../../../ui/factory.js';
 import { middleware } from '../../../utils/middleware.js';
-import { klipyService } from '../../../services/klipy.js';
 
 export const module = 'Configuration';
 export const userPermission = PermissionFlagsBits.ManageGuild;
@@ -171,7 +170,6 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     }
 
     await middleware.safeDefer(interaction);
-    const gifUrl = await klipyService.search('welcome', 'anime welcome cute');
 
     const welcomeText = config.welcomeMessage
       .replace('{member}', `${interaction.user}`)
@@ -179,9 +177,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
     const embed = UIFactory.premium('✦ Welcome Preview', welcomeText, {
       thumbnail: interaction.user.displayAvatarURL({ forceStatic: false } as any),
-      image: gifUrl || undefined,
       timestamp: true,
-      footerText: `Member #${interaction.guild.memberCount}`,
+      footerText: `Member #${interaction.guild.memberCount}`
     });
 
     await middleware.safeReply(interaction, { embeds: [embed] });

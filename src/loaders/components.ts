@@ -1,17 +1,20 @@
 import { mkdir } from 'fs/promises';
-import { join } from 'path';
-import { pathToFileURL } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
+import { dirname, join } from 'path';
 import { logger } from '../utils/logger.js';
 import { scanDirectory } from '../utils/scanner.js';
 import type { VeluClient, ComponentHandler } from '../types/index.js';
 
 export async function loadComponents(client: VeluClient): Promise<void> {
   client.components = new Map();
-  const componentsDir = join(process.cwd(), 'src', 'interactions', 'components');
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = dirname(__filename);
+  const componentsDir = join(__dirname, '..', 'interactions', 'components');
+  const ext = __filename.endsWith('.ts') ? '.ts' : '.js';
 
   try {
     await mkdir(componentsDir, { recursive: true });
-    const componentFiles = await scanDirectory(componentsDir);
+    const componentFiles = await scanDirectory(componentsDir, { extension: ext });
 
     for (const file of componentFiles) {
       const fileUrl = pathToFileURL(file).href;

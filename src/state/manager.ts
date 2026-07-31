@@ -4,7 +4,11 @@ import { logger } from '../utils/logger.js';
 import type { StateRecord, ResolvedState } from '../types/index.js';
 
 // In-memory state store: Map<key, { data, expiresAt }>
-const memoryStore = new Map<string, StateRecord>();
+const globalAny = global as any;
+if (!globalAny.__veluMemoryStore) {
+  globalAny.__veluMemoryStore = new Map<string, StateRecord>();
+}
+const memoryStore = globalAny.__veluMemoryStore as Map<string, StateRecord>;
 
 /**
  * Clean up expired entries in the in-memory store.

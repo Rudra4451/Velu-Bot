@@ -1,6 +1,5 @@
 import { GuildMember } from 'discord.js';
 import { db } from '../state/db.js';
-import { klipyService } from '../services/klipy.js';
 import { actionLogger } from '../utils/actionLogger.js';
 import { UIFactory } from '../ui/factory.js';
 import { logger } from '../utils/logger.js';
@@ -27,8 +26,6 @@ export async function execute(member: GuildMember, client: VeluClient): Promise<
           ? `**${durationDays} days** and **${durationHours} hours**` 
           : `**${durationHours} hours**`;
 
-        const gifUrl = await klipyService.search('goodbye', 'anime wave goodbye sad');
-
         const goodbyeText = config.goodbyeMessage
           ? config.goodbyeMessage.replace('{member}', `${member.user.tag}`).replace('{server}', guild.name)
           : `Farewell ${member.user.tag}! ☁️\nWe hope you had a good time in **${guild.name}**... you will be missed! 🕊️`;
@@ -38,7 +35,6 @@ export async function execute(member: GuildMember, client: VeluClient): Promise<
           `${goodbyeText}\n\n*They stayed with us for ${durationText}.*`,
           {
             thumbnail: member.user.displayAvatarURL({ forceStatic: false } as any),
-            image: gifUrl || undefined,
             timestamp: true,
             footerText: `Members: ${guild.memberCount}`,
           }

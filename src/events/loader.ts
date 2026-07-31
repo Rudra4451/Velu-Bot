@@ -1,16 +1,19 @@
 import { mkdir } from 'fs/promises';
-import { join } from 'path';
-import { pathToFileURL } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
+import { dirname, join } from 'path';
 import { logger } from '../utils/logger.js';
 import { scanDirectory } from '../utils/scanner.js';
 import type { VeluClient, BotEvent } from '../types/index.js';
 
 export async function loadEvents(client: VeluClient): Promise<void> {
-  const eventsDir = join(process.cwd(), 'src', 'events');
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = dirname(__filename);
+  const eventsDir = __dirname;
+  const ext = __filename.endsWith('.ts') ? '.ts' : '.js';
 
   try {
     await mkdir(eventsDir, { recursive: true });
-    const eventFiles = await scanDirectory(eventsDir, { exclude: ['loader.ts', 'loader.js'] });
+    const eventFiles = await scanDirectory(eventsDir, { extension: ext, exclude: ['loader.ts', 'loader.js'] });
 
     for (const file of eventFiles) {
       const fileUrl = pathToFileURL(file).href;

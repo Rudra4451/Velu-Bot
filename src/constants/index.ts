@@ -1,7 +1,7 @@
 export { THEME } from './theme.js';
 
 export const LIMITS = {
-  STATE_TTL_MS: 15 * 60 * 1000,   // 15 minutes temporary memory expiration
+  STATE_TTL_MS: 2 * 60 * 60 * 1000,   // 2 hours temporary memory expiration
   DISCORD_CUSTOM_ID_LIMIT: 100,    // Discord's maximum custom_id length
   COOLDOWN_DEFAULT_MS: 3000,       // Default interaction cooldown (ms)
 } as const;

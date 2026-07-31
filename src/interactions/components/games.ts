@@ -216,7 +216,7 @@ function getBestC4Move(board: any[]) {
   for (const col of validLocations) {
     const bCopy = dropCheckerSimulate(board, col, 'p2');
     if (bCopy) {
-      const score = minimaxC4(bCopy, 5, -Infinity, Infinity, false);
+      const score = minimaxC4(bCopy, 4, -Infinity, Infinity, false);
       if (score > bestScore) {
         bestScore = score;
         bestCol = col;

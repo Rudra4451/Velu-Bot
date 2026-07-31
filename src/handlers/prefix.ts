@@ -3,7 +3,6 @@ import { config } from '../config/index.js';
 import { UIFactory } from '../ui/factory.js';
 import { db } from '../state/db.js';
 import { permissionManager } from '../utils/permissionManager.js';
-import { klipyService } from '../services/klipy.js';
 import { actionLogger } from '../utils/actionLogger.js';
 import { logger } from '../utils/logger.js';
 import type { VeluClient } from '../types/index.js';
@@ -237,11 +236,8 @@ const commands: Record<string, CommandFunction> = {
 
   async afk(message: Message, args: string[]) {
     const reason = args.join(' ') || 'AFK';
-    const gifUrl = await klipyService.search('afk', 'anime sleep nap');
-    db.setAFK(message.author.id, reason, gifUrl);
-    const embed = UIFactory.premium('💤 AFK Status Set', `Reason: ${reason}\n*Send a message to remove your AFK.*`, {
-      image: gifUrl || undefined,
-    });
+    db.setAFK(message.author.id, reason);
+    const embed = UIFactory.premium('💤 AFK Status Set', `Reason: ${reason}\n*Send a message to remove your AFK.*`);
     await safeReply(message, { embeds: [embed] });
   },
 
@@ -323,8 +319,7 @@ const commands: Record<string, CommandFunction> = {
     if (!(await hierarchyCheck(message, target))) return;
     try {
       await target.kick(reason);
-      const gifUrl = await klipyService.search('kick', 'anime kick flying');
-      const embed = UIFactory.success('Member Kicked', `${target.user.tag} was kicked.\n**Reason:** ${reason}`, { image: gifUrl || undefined });
+      const embed = UIFactory.success('Member Kicked', `${target.user.tag} was kicked.\n**Reason:** ${reason}`);
       await safeReply(message, { embeds: [embed] });
       await actionLogger.log(message.guild, {
         title: '🔨 Member Kicked',
@@ -356,8 +351,7 @@ const commands: Record<string, CommandFunction> = {
     }
     try {
       await message.guild.bans.create(targetUser.id, { reason });
-      const gifUrl = await klipyService.search('ban', 'anime ban hammer');
-      const embed = UIFactory.success('User Banned', `${targetUser.tag} was banned.\n**Reason:** ${reason}`, { image: gifUrl || undefined });
+      const embed = UIFactory.success('User Banned', `${targetUser.tag} was banned.\n**Reason:** ${reason}`);
       await safeReply(message, { embeds: [embed] });
       await actionLogger.log(message.guild, {
         title: '🔨 Member Banned',
