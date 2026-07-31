@@ -82,13 +82,16 @@ player.events.on('playerStart', (queue, track) => {
   if (!textChannel) return;
 
   const durationStr = track.duration || 'Live Stream';
+  const loopLabels = ['Off', 'Track 🔂', 'Queue 🔁', 'Autoplay 📻'];
+  const loopStatus = loopLabels[queue.repeatMode] || 'Off';
+
   const embed = UIFactory.premium(
     '🎶 Now Playing',
     `**[${track.title}](${track.url})**\n\n` +
     `👤 **Artist:** \`${track.author || 'Unknown'}\`\n` +
     `⏱️ **Duration:** \`${durationStr}\`\n` +
     `🎧 **Requested by:** ${track.requestedBy ? `<@${track.requestedBy.id}>` : 'Unknown'}\n\n` +
-    `🔊 **Volume:** \`${queue.node.volume}%\`   |   🔁 **Loop:** \`${queue.repeatMode === 1 ? 'Track' : queue.repeatMode === 2 ? 'Queue' : 'Off'}\``,
+    `🔊 **Volume:** \`${queue.node.volume}%\`   |   🔁 **Mode:** \`${loopStatus}\``,
     {
       thumbnail: track.thumbnail,
       footerText: 'Velu Music • Premium Audio Engine ✨'
@@ -97,6 +100,43 @@ player.events.on('playerStart', (queue, track) => {
 
   const actionRow = createMusicControlRow(false, queue.repeatMode);
   textChannel.send({ embeds: [embed], components: [actionRow] }).catch(() => {});
+});
+
+player.events.on('emptyQueue', async (queue) => {
+  const textChannel = (queue.metadata as any)?.channel as TextChannel;
+
+  if (queue.repeatMode === QueueRepeatMode.AUTOPLAY || queue.repeatMode === (3 as any)) {
+    try {
+      const prevTrack = queue.history.previousTrack;
+      if (!prevTrack) return;
+
+      const query = `${prevTrack.author || ''} ${prevTrack.title} related`.trim();
+      const searchResult = await player.search(query, {
+        requestedBy: prevTrack.requestedBy || undefined,
+        searchEngine: 'auto'
+      });
+
+      if (searchResult.hasTracks()) {
+        const nextTrack = searchResult.tracks.find(t => t.url !== prevTrack.url) || searchResult.tracks[0];
+        if (nextTrack) {
+          queue.addTrack(nextTrack);
+          if (!queue.isPlaying()) {
+            await queue.node.play();
+          }
+
+          if (textChannel) {
+            const embed = UIFactory.info(
+              '📻 Autoplay Active',
+              `Automatically added related track: **[${nextTrack.title}](${nextTrack.url})**`
+            );
+            textChannel.send({ embeds: [embed] }).catch(() => {});
+          }
+        }
+      }
+    } catch (err: any) {
+      logger.error(`Autoplay search error: ${err.message || err}`);
+    }
+  }
 });
 
 player.events.on('error', (queue, error) => {
