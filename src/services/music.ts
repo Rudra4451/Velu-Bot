@@ -254,7 +254,9 @@ export const musicService = {
           leaveOnEmptyCooldown: 180000,
           leaveOnEnd: true,
           leaveOnEndCooldown: 180000,
-          bufferingTimeout: 10000
+          bufferingTimeout: 15000,
+          volume: 85,
+          selfDeaf: true
         }
       });
 
