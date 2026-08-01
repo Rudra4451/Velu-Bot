@@ -446,7 +446,8 @@ export const musicService = {
     const targetTrack = tracks[0];
 
     try {
-      const { track } = await player.play(channel as any, targetTrack, {
+      const playQuery = targetTrack.url || targetTrack;
+      const { track } = await player.play(channel as any, playQuery, {
         requestedBy: member.user,
         nodeOptions: {
           metadata: {
