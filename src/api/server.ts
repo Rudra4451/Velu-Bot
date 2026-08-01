@@ -89,5 +89,14 @@ export function startApiServer(client: VeluClient, port: number = 3001) {
 
   app.listen(port, () => {
     logger.info(`🌐 Velu API Server running on http://localhost:${port}`);
+
+    // Self-Ping Keep-Alive for Render / Cloud Hosts (prevents 15-min inactivity sleep)
+    const renderUrl = process.env.RENDER_EXTERNAL_URL;
+    if (renderUrl) {
+      setInterval(() => {
+        fetch(`${renderUrl}/healthz`).catch(() => {});
+      }, 8 * 60 * 1000); // Ping every 8 minutes
+      logger.info(`🔄 Keep-Alive Ping active for: ${renderUrl}/healthz`);
+    }
   });
 }
