@@ -82,8 +82,8 @@ export function startApiServer(client: VeluClient, port: number = 3001) {
     res.json(enriched);
   });
 
-  app.listen(port, () => {
-    logger.info(`🌐 Velu API Server running on http://localhost:${port}`);
+  app.listen(port, '0.0.0.0', () => {
+    logger.info(`🌐 Velu API Server running on http://0.0.0.0:${port}`);
 
     // ── Self-Ping Keep-Alive (prevents Render free-tier 15-min sleep) ──
     const renderUrl = process.env.RENDER_EXTERNAL_URL;
