@@ -450,17 +450,25 @@ export const musicService = {
       throw new Error('You must join a voice channel to play music.');
     }
 
-    // 1. Search using fast multi-engine fallback
-    const tracks = await this.searchTracks(query, member.user);
-    if (!tracks || tracks.length === 0) {
-      throw new Error('No audio tracks found for that search query.');
+    // 1. Search via discord-player AUTO / SoundCloud engines
+    let searchResult = await player.search(query, {
+      requestedBy: member.user,
+      searchEngine: QueryType.AUTO
+    }).catch(() => null);
+
+    if (!searchResult || !searchResult.hasTracks()) {
+      searchResult = await player.search(query, {
+        requestedBy: member.user,
+        searchEngine: QueryType.SOUNDCLOUD_SEARCH
+      }).catch(() => null);
     }
 
-    const targetTrack = tracks[0];
-    const targetQuery = targetTrack.url || query;
+    if (!searchResult || !searchResult.hasTracks()) {
+      throw new Error(`No music tracks found for "${query}". Please check the title or URL.`);
+    }
 
     try {
-      const { track } = await player.play(channel as any, targetQuery, {
+      const { track } = await player.play(channel as any, searchResult, {
         requestedBy: member.user,
         nodeOptions: {
           metadata: {
@@ -478,9 +486,9 @@ export const musicService = {
       });
 
       return {
-        message: `Queued **[${track.title || targetTrack.title}](${track.url || targetTrack.url})**`,
-        trackName: track.title || targetTrack.title,
-        thumbnail: track.thumbnail || targetTrack.thumbnail
+        message: `Queued **[${track.title}](${track.url})**`,
+        trackName: track.title,
+        thumbnail: track.thumbnail
       };
     } catch (e: any) {
       logger.error(`Failed to play track: ${e.message || e}`);
