@@ -1,13 +1,13 @@
-import type {
-  ChatInputCommandInteraction,
-  ButtonInteraction,
-  AnySelectMenuInteraction,
-  ModalSubmitInteraction,
-  InteractionReplyOptions,
+import { 
+  ChatInputCommandInteraction, 
+  ButtonInteraction, 
+  AnySelectMenuInteraction, 
+  ModalSubmitInteraction, 
+  InteractionReplyOptions, 
   MessagePayload,
+  MessageFlags
 } from 'discord.js';
 import { logger } from './logger.js';
-import { UIFactory } from '../ui/factory.js';
 import { permissionManager } from './permissionManager.js';
 import type { Command } from '../types/index.js';
 
@@ -35,11 +35,13 @@ export const middleware = {
 
   /**
    * Safely reply to an interaction, handling scenarios where it has already been replied, deferred, or closed.
+   * Uses MessageFlags.Ephemeral for modern Discord.js v14 compatibility.
    */
   async safeReply(interaction: AnyInteraction, payload: ReplyPayload, ephemeral: boolean = false) {
     const data: Record<string, unknown> = typeof payload === 'string' ? { content: payload } : { ...payload as object };
-    if (ephemeral) {
-      data.ephemeral = true;
+    
+    if (ephemeral && !data.flags) {
+      data.flags = MessageFlags.Ephemeral;
     }
 
     try {
@@ -47,11 +49,14 @@ export const middleware = {
         return await interaction.followUp(data as InteractionReplyOptions);
       }
       if (interaction.deferred) {
+        // When editing a deferred reply, Discord API expects editReply content without flags/ephemeral properties
+        delete data.flags;
+        delete data.ephemeral;
         return await interaction.editReply(data as any);
       }
       return await interaction.reply(data as InteractionReplyOptions);
     } catch (error: any) {
-      logger.error('Failed safeReply execution', error);
+      logger.error('Failed safeReply execution:', error.message || error);
       return null;
     }
   },
@@ -62,10 +67,14 @@ export const middleware = {
   async safeDefer(interaction: AnyInteraction, ephemeral: boolean = false): Promise<void> {
     try {
       if (!interaction.deferred && !interaction.replied) {
-        await interaction.deferReply({ ephemeral });
+        if (ephemeral) {
+          await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+        } else {
+          await interaction.deferReply();
+        }
       }
     } catch (error: any) {
-      logger.error('Failed safeDefer execution', error);
+      logger.error('Failed safeDefer execution:', error.message || error);
     }
   }
 };
