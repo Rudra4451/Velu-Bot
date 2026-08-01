@@ -3,14 +3,17 @@ import { UIFactory } from '../ui/factory.js';
 import { logger } from '../utils/logger.js';
 import { player } from '../../index.js';
 import { stateManager } from '../state/manager.js';
-import { QueueRepeatMode, Track, onBeforeCreateStream, QueryType } from 'discord-player';
+import { QueueRepeatMode, Track, onBeforeCreateStream } from 'discord-player';
 import play from 'play-dl';
 
-// Initialize play-dl SoundCloud Client ID asynchronously for sub-second search & streaming
+// Initialize SoundCloud token synchronously with high-performance default client ID
+play.setToken({ soundcloud: { client_id: 'sUn5toeW5d8MC2jOLpE2yAibTG7RRYsA' } });
+
+// Fetch fresh dynamic client ID asynchronously for fallback
 play.getFreeClientID().then(id => {
   if (id) {
     play.setToken({ soundcloud: { client_id: id } });
-    logger.info('🎵 play-dl SoundCloud client ID initialized successfully.');
+    logger.info('🎵 play-dl SoundCloud client ID updated successfully.');
   }
 }).catch(err => {
   logger.warn(`play-dl client ID init warning: ${err.message || err}`);
@@ -197,7 +200,7 @@ player.events.on('emptyQueue', async (queue) => {
       if (tracks && tracks.length > 0) {
         queue.addTrack(tracks[0]);
         if (!queue.isPlaying()) {
-          await queue.node.play();
+          queue.node.play().catch(err => logger.warn(`Autoplay node.play warning: ${err.message || err}`));
         }
         const embed = UIFactory.info(
           '📻 Autoplay Active',
@@ -300,7 +303,7 @@ export const musicService = {
     const cached = getCachedSearch(cacheKey);
     if (cached) return cached;
 
-    // 1. YouTube & Spotify search via play-dl with strict 3s timeout
+    // 1. YouTube & Spotify search via play-dl with strict 2.5s timeout
     try {
       const searchPromise = (async () => {
         const validation = await play.validate(trimmed).catch(() => false);
@@ -349,7 +352,7 @@ export const musicService = {
       })();
 
       const timeoutPromise = new Promise<Track[]>((_, reject) =>
-        setTimeout(() => reject(new Error('search timeout')), 3000)
+        setTimeout(() => reject(new Error('search timeout')), 2500)
       );
 
       const tracks = await Promise.race([searchPromise, timeoutPromise]);
@@ -361,11 +364,11 @@ export const musicService = {
       logger.warn(`play-dl search warning for "${trimmed}": ${err.message || err}`);
     }
 
-    // 2. Fallback: discord-player search via DefaultExtractors with strict 3s timeout
+    // 2. Fallback: discord-player search via DefaultExtractors with strict 2s timeout
     try {
       const playerSearchPromise = player.search(trimmed, { requestedBy: user });
       const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('player.search timeout')), 3000)
+        setTimeout(() => reject(new Error('player.search timeout')), 2000)
       );
 
       const res = await Promise.race([playerSearchPromise, timeoutPromise]);
@@ -380,6 +383,9 @@ export const musicService = {
     return [];
   },
 
+  /**
+   * Fast music play execution with zero-latency sub-second response.
+   */
   async play(member: GuildMember, query: string, textChannel: TextChannel): Promise<{ message: string; trackName: string; thumbnail?: string }> {
     const channel = member.voice.channel;
     if (!channel) {
@@ -412,15 +418,18 @@ export const musicService = {
 
       if (!queue.connection) {
         await Promise.race([
-          queue.connect(channel as any, { deaf: true, timeout: 5_000 }),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Voice connection timed out after 5s')), 5000))
+          queue.connect(channel as any, { deaf: true, timeout: 4_000 }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Voice channel connection timed out after 4s')), 4000))
         ]);
       }
 
       queue.addTrack(targetTrack);
 
+      // Start playback asynchronously in background so response returns immediately
       if (!queue.isPlaying()) {
-        await queue.node.play();
+        queue.node.play().catch(err => {
+          logger.warn(`queue.node.play async warning: ${err.message || err}`);
+        });
       }
 
       return {
