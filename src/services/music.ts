@@ -446,28 +446,46 @@ export const musicService = {
     const targetTrack = tracks[0];
 
     try {
-      const playQuery = targetTrack.url || targetTrack;
-      const { track } = await player.play(channel as any, playQuery, {
-        requestedBy: member.user,
-        nodeOptions: {
-          metadata: {
-            channel: textChannel
-          },
+      // 1. Get or create queue for guild
+      let queue = player.nodes.get(member.guild.id);
+      if (!queue) {
+        queue = player.nodes.create(member.guild.id, {
+          metadata: { channel: textChannel },
           leaveOnEmpty: true,
           leaveOnEmptyCooldown: 180_000,
           leaveOnEnd: true,
           leaveOnEndCooldown: 180_000,
-          bufferingTimeout: 15_000,
+          bufferingTimeout: 5_000,
+          connectionTimeout: 5_000,
           volume: 95,
           selfDeaf: true,
           leaveOnStop: true,
-        }
-      });
+        });
+      }
+
+      // 2. Connect to voice channel with strict 5s timeout
+      if (!queue.connection) {
+        await Promise.race([
+          queue.connect(channel as any, { deaf: true, timeout: 5_000 }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Voice connection timed out')), 5000))
+        ]).catch((err) => {
+          logger.warn(`Voice channel connect warning: ${err.message || err}`);
+        });
+      }
+
+      // 3. Add track and start playback asynchronously
+      queue.addTrack(targetTrack);
+
+      if (!queue.isPlaying()) {
+        queue.node.play().catch(err => {
+          logger.warn(`queue.node.play warning: ${err.message || err}`);
+        });
+      }
 
       return {
-        message: `Queued **[${track.title || targetTrack.title}](${track.url || targetTrack.url})**`,
-        trackName: track.title || targetTrack.title,
-        thumbnail: track.thumbnail || targetTrack.thumbnail
+        message: `Queued **[${targetTrack.title}](${targetTrack.url})**`,
+        trackName: targetTrack.title,
+        thumbnail: targetTrack.thumbnail
       };
     } catch (e: any) {
       logger.error(`Failed to play track: ${e.message || e}`);
