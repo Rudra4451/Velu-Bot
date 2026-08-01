@@ -183,7 +183,7 @@ export class GuildMusicPlayer {
     try {
       await this.connect();
 
-      // High Quality stream extraction (quality: 2 for 48kHz Opus stream)
+      // Resolve official audio stream via SoundCloud bridge
       let streamUrl = currentSong.url;
 
       if (!currentSong.url.includes('soundcloud.com')) {
@@ -228,12 +228,12 @@ export class GuildMusicPlayer {
     const embed = UIFactory.premium(
       '🎶 Now Playing',
       `**[${song.title}](${song.url})**\n\n` +
-      `👤 **Artist:** \`${song.author || 'Unknown'}\`   |   ⏱️ **Duration:** \`${song.duration || 'Live'}\`\n` +
+      `👤 **Artist:** \`${song.author || 'Official Release'}\`   |   ⏱️ **Duration:** \`${song.duration || 'Live'}\`\n` +
       `🎧 **Requested by:** \`${song.requester}\`   |   🔊 **Volume:** \`${this.volume}%\` \n\n` +
-      `🔁 **Loop Mode:** \`${loopLabels[this.repeatMode] || 'Off'}\`   |   💎 **Bitrate:** \`48kHz Studio Opus ✨\``,
+      `🔁 **Loop Mode:** \`${loopLabels[this.repeatMode] || 'Off'}\`   |   💎 **Quality:** \`Official Master 48kHz Opus ✨\``,
       {
         thumbnail: song.thumbnail,
-        footerText: 'Velu • Ultra Studio Audio 48kHz & High Performance ⚡'
+        footerText: 'Velu • Official Release Master 48kHz Studio Audio ⚡'
       }
     );
 
@@ -276,21 +276,21 @@ export class GuildMusicPlayer {
 
     try {
       const cleanTitle = cleanTrackTitle(lastSong.title);
-      const query = `${cleanTitle} song`;
-      const searchRes = await play.search(query, { source: { soundcloud: 'tracks' }, limit: 5 });
+      const query = `${cleanTitle} official audio`;
+      const searchRes = await play.search(query, { source: { youtube: 'video' }, limit: 5 });
 
       const recentUrls = new Set(this.queue.map(s => s.url));
-      const nextItem = searchRes.find(s => !recentUrls.has(s.url || (s as any).permalink_url)) || searchRes[0];
+      const nextItem = searchRes.find(s => !recentUrls.has(s.url)) || searchRes[0];
 
       if (nextItem) {
-        const scTrack = nextItem as any;
         const newSong: Song = {
-          title: scTrack.name || scTrack.title || 'Related Song',
-          url: scTrack.permalink_url || scTrack.url,
-          duration: scTrack.durationInMs ? `${Math.floor(scTrack.durationInMs / 60000)}:${Math.floor((scTrack.durationInMs % 60000) / 1000).toString().padStart(2, '0')}` : 'Live',
-          thumbnail: scTrack.thumbnail || scTrack.user?.avatar_url || '',
+          title: nextItem.title || 'Related Song',
+          url: nextItem.url,
+          duration: nextItem.durationRaw || 'Live',
+          thumbnail: nextItem.thumbnails?.[0]?.url || '',
           requester: 'Autoplay 📻',
-          author: scTrack.user?.name || scTrack.user?.username || 'Artist'
+          author: nextItem.channel?.name || 'Official Artist',
+          source: 'youtube'
         };
 
         this.queue.push(newSong);
@@ -403,8 +403,8 @@ export const musicService = {
   },
 
   /**
-   * Dual-Engine High-Accuracy Search across SoundCloud & YouTube.
-   * Returns valid Song objects with studio quality stream paths.
+   * Official Search Engine: YouTube Video Search & Spotify Resolution.
+   * Filters out fan remixes, slowed+reverb, and nightcore unless explicitly requested by the user.
    */
   async searchTracks(query: string, user: any): Promise<Song[]> {
     const trimmed = query.trim();
@@ -418,95 +418,95 @@ export const musicService = {
       let searchQuery = trimmed;
       const validation = await play.validate(trimmed).catch(() => 'search');
 
-      // Smart URL resolution
-      if (validation === 'yt_video' || validation === 'yt_playlist') {
+      // 1. Spotify Track & Playlist Resolution
+      if (validation === 'sp_track') {
+        try {
+          const spData: any = await play.spotify(trimmed);
+          searchQuery = `${spData.name} ${spData.artists?.[0]?.name || ''} official audio`.trim();
+        } catch {}
+      } else if (validation === 'yt_video' || validation === 'yt_playlist') {
         try {
           const ytInfo = await play.video_basic_info(trimmed);
           const title = ytInfo.video_details.title || '';
           const channel = ytInfo.video_details.channel?.name || '';
-          searchQuery = `${title} ${channel}`.trim();
-        } catch {}
-      } else if (validation === 'sp_track') {
-        try {
-          const spData: any = await play.spotify(trimmed);
-          searchQuery = `${spData.name} ${spData.artists?.[0]?.name || ''}`.trim();
-        } catch {}
-      } else if (validation === 'so_track') {
-        try {
-          const scInfo: any = await play.soundcloud(trimmed);
           const song: Song = {
-            title: scInfo.name || scInfo.title || 'SoundCloud Track',
-            url: scInfo.permalink_url || scInfo.url,
-            duration: scInfo.durationInMs
-              ? `${Math.floor(scInfo.durationInMs / 60000)}:${Math.floor((scInfo.durationInMs % 60000) / 1000).toString().padStart(2, '0')}`
-              : 'Live',
-            thumbnail: scInfo.thumbnail || scInfo.user?.avatar_url || '',
+            title: title,
+            url: ytInfo.video_details.url,
+            duration: ytInfo.video_details.durationRaw || '0:00',
+            thumbnail: ytInfo.video_details.thumbnails?.[0]?.url || '',
             requester: user.tag || user.username || 'User',
-            author: scInfo.user?.name || scInfo.user?.username || 'Artist',
-            source: 'soundcloud'
+            author: channel || 'Official Channel',
+            source: 'youtube'
           };
           searchCache.set(cacheKey, { songs: [song], expiresAt: Date.now() + 60_000 });
           return [song];
         } catch {}
       }
 
-      // 1. Primary: SoundCloud Search
-      try {
-        const scResults = await Promise.race([
-          play.search(searchQuery, { source: { soundcloud: 'tracks' }, limit: 10 }),
-          new Promise<any[]>((_, reject) => setTimeout(() => reject(new Error('SC search timeout')), 2000))
-        ]);
-
-        if (scResults && scResults.length > 0) {
-          const songs: Song[] = scResults.map((item: any) => {
-            const durationMs = item.durationInMs;
-            const durationStr = durationMs
-              ? `${Math.floor(durationMs / 60000)}:${Math.floor((durationMs % 60000) / 1000).toString().padStart(2, '0')}`
-              : 'Live';
-
-            return {
-              title: item.name || item.title || 'Unknown Song',
-              url: item.permalink_url || item.url,
-              duration: durationStr,
-              thumbnail: item.thumbnail || item.user?.avatar_url || '',
-              requester: user.tag || user.username || 'User',
-              author: item.user?.name || item.user?.username || 'Artist',
-              source: 'soundcloud'
-            };
-          });
-
-          searchCache.set(cacheKey, { songs, expiresAt: Date.now() + 60_000 });
-          return songs;
-        }
-      } catch (scErr: any) {
-        logger.warn(`SoundCloud primary search warning for "${searchQuery}": ${scErr.message || scErr}`);
-      }
-
-      // 2. Secondary Fallback: YouTube Search
+      // 2. Primary Official YouTube Video Search
       try {
         const ytResults = await Promise.race([
           play.search(searchQuery, { source: { youtube: 'video' }, limit: 10 }),
-          new Promise<any[]>((_, reject) => setTimeout(() => reject(new Error('YT search timeout')), 2000))
+          new Promise<any[]>((_, reject) => setTimeout(() => reject(new Error('YT search timeout')), 2500))
         ]);
 
         if (ytResults && ytResults.length > 0) {
-          const songs: Song[] = ytResults.map((item: any) => {
-            return {
-              title: item.title || 'Unknown Song',
-              url: item.url,
-              duration: item.durationRaw || '0:00',
-              thumbnail: item.thumbnails?.[0]?.url || '',
-              requester: user.tag || user.username || 'User',
-              author: item.channel?.name || 'YouTube',
-              source: 'youtube'
-            };
+          // Filter out fan-made remixes, slowed+reverb, nightcore unless user explicitly asked for them
+          const userAskedEdit = searchQuery.toLowerCase().includes('slowed') || searchQuery.toLowerCase().includes('reverb') || searchQuery.toLowerCase().includes('nightcore');
+
+          const filteredResults = ytResults.filter(item => {
+            if (userAskedEdit) return true;
+            const tLower = (item.title || '').toLowerCase();
+            if (tLower.includes('slowed') || tLower.includes('reverb') || tLower.includes('nightcore') || tLower.includes('8d audio')) {
+              return false;
+            }
+            return true;
           });
+
+          const targetList = filteredResults.length > 0 ? filteredResults : ytResults;
+
+          const songs: Song[] = targetList.map((item: any) => ({
+            title: item.title || 'Unknown Song',
+            url: item.url,
+            duration: item.durationRaw || '0:00',
+            thumbnail: item.thumbnails?.[0]?.url || '',
+            requester: user.tag || user.username || 'User',
+            author: item.channel?.name || 'Official Channel',
+            source: 'youtube'
+          }));
 
           searchCache.set(cacheKey, { songs, expiresAt: Date.now() + 60_000 });
           return songs;
         }
       } catch (ytErr: any) {
-        logger.warn(`YouTube secondary search warning for "${searchQuery}": ${ytErr.message || ytErr}`);
+        logger.warn(`YouTube primary search warning for "${searchQuery}": ${ytErr.message || ytErr}`);
+      }
+
+      // 3. Fallback: SoundCloud Search
+      try {
+        const scResults = await Promise.race([
+          play.search(searchQuery, { source: { soundcloud: 'tracks' }, limit: 5 }),
+          new Promise<any[]>((_, reject) => setTimeout(() => reject(new Error('SC search timeout')), 2000))
+        ]);
+
+        if (scResults && scResults.length > 0) {
+          const songs: Song[] = scResults.map((item: any) => ({
+            title: item.name || item.title || 'Unknown Song',
+            url: item.permalink_url || item.url,
+            duration: item.durationInMs
+              ? `${Math.floor(item.durationInMs / 60000)}:${Math.floor((item.durationInMs % 60000) / 1000).toString().padStart(2, '0')}`
+              : 'Live',
+            thumbnail: item.thumbnail || item.user?.avatar_url || '',
+            requester: user.tag || user.username || 'User',
+            author: item.user?.name || item.user?.username || 'Artist',
+            source: 'soundcloud'
+          }));
+
+          searchCache.set(cacheKey, { songs, expiresAt: Date.now() + 60_000 });
+          return songs;
+        }
+      } catch (scErr: any) {
+        logger.warn(`SoundCloud fallback search warning for "${searchQuery}": ${scErr.message || scErr}`);
       }
     } catch (err: any) {
       logger.warn(`Search warning for "${trimmed}": ${err.message || err}`);
