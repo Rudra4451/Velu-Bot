@@ -351,7 +351,7 @@ export const musicService = {
   },
 
   /**
-   * Ultra-fast (sub-second) multi-engine search via play-dl & Track instantiation.
+   * Ultra-fast multi-engine search returning valid Track objects.
    */
   async searchTracks(query: string, user: any): Promise<Track[]> {
     const trimmed = query.trim();
@@ -361,8 +361,29 @@ export const musicService = {
     const cached = getCachedSearch(cacheKey);
     if (cached) return cached;
 
+    // 1. Try discord-player SOUNDCLOUD_SEARCH (fast, yields full valid SoundCloud Track objects)
     try {
-      // Sub-second search via play-dl with strict 2.5s timeout
+      const searchPromise = player.search(trimmed, {
+        requestedBy: user,
+        searchEngine: QueryType.SOUNDCLOUD_SEARCH
+      });
+
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('SOUNDCLOUD_SEARCH timeout')), 2500)
+      );
+
+      const res = await Promise.race([searchPromise, timeoutPromise]);
+      if (res && res.hasTracks()) {
+        const tracks = res.tracks;
+        setCachedSearch(cacheKey, tracks);
+        return tracks;
+      }
+    } catch (err: any) {
+      logger.warn(`SOUNDCLOUD_SEARCH warning for "${trimmed}": ${err.message || err}`);
+    }
+
+    // 2. Fallback: play-dl search
+    try {
       const searchPromise = play.search(trimmed, {
         source: { soundcloud: 'tracks' },
         limit: 10
@@ -383,9 +404,11 @@ export const musicService = {
             ? `${Math.floor(durationMs / 60000)}:${Math.floor((durationMs % 60000) / 1000).toString().padStart(2, '0')}`
             : 'Live';
 
+          const trackUrl = scItem.permalink_url || scItem.url;
+
           const track = new Track(player, {
             title: scItem.name || scItem.title || 'Unknown Song',
-            url: scItem.url,
+            url: trackUrl,
             duration: durationStr,
             thumbnail: scItem.thumbnail || scItem.user?.avatar_url || '',
             author: scItem.user?.name || scItem.user?.username || 'SoundCloud',
@@ -402,7 +425,7 @@ export const musicService = {
         return tracks;
       }
     } catch (err: any) {
-      logger.warn(`play-dl fast search error for "${trimmed}": ${err.message || err}`);
+      logger.warn(`play-dl fallback search error for "${trimmed}": ${err.message || err}`);
     }
 
     return [];
