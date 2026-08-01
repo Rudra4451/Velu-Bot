@@ -35,7 +35,7 @@ ENV YOUTUBE_DL_SKIP_DOWNLOAD=true
 COPY package*.json ./
 
 # Install only production dependencies
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev --ignore-scripts
 
 # Copy built dist files from builder stage
 COPY --from=builder /app/dist ./dist
