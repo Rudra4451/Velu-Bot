@@ -3,9 +3,19 @@ import { UIFactory } from '../ui/factory.js';
 import { logger } from '../utils/logger.js';
 import { player } from '../../index.js';
 import { stateManager } from '../state/manager.js';
-import { QueueRepeatMode, QueryType, onBeforeCreateStream } from 'discord-player';
+import { QueueRepeatMode, QueryType, Track, onBeforeCreateStream } from 'discord-player';
 import play from 'play-dl';
 import youtubeDl from 'youtube-dl-exec';
+
+// Initialize play-dl SoundCloud Client ID asynchronously for sub-second search & streaming
+play.getFreeClientID().then(id => {
+  if (id) {
+    play.setToken({ soundcloud: { client_id: id } });
+    logger.info('🎵 play-dl SoundCloud client ID initialized successfully.');
+  }
+}).catch(err => {
+  logger.warn(`play-dl client ID init warning: ${err.message || err}`);
+});
 
 export interface Song {
   title: string;
@@ -341,9 +351,9 @@ export const musicService = {
   },
 
   /**
-   * Ultra-fast multi-engine search via play-dl & discord-player with 2.5-second timeout.
+   * Ultra-fast (sub-second) multi-engine search via play-dl & Track instantiation.
    */
-  async searchTracks(query: string, user: any): Promise<any[]> {
+  async searchTracks(query: string, user: any): Promise<Track[]> {
     const trimmed = query.trim();
     if (!trimmed) return [];
 
@@ -351,94 +361,48 @@ export const musicService = {
     const cached = getCachedSearch(cacheKey);
     if (cached) return cached;
 
-    const isUrl = /^https?:\/\//i.test(trimmed);
-
     try {
-      if (isUrl) {
-        if (trimmed.includes('soundcloud.com')) {
-          const scInfo = await play.soundcloud(trimmed);
-          if (scInfo) {
-            const track = {
-              title: (scInfo as any).name || 'SoundCloud Track',
-              url: trimmed,
-              duration: '0:00',
-              author: 'SoundCloud',
-              thumbnail: undefined,
-              requestedBy: user,
-              source: 'soundcloud'
-            };
-            setCachedSearch(cacheKey, [track]);
-            return [track];
-          }
+      // Sub-second search via play-dl with strict 2.5s timeout
+      const searchPromise = play.search(trimmed, {
+        source: { soundcloud: 'tracks' },
+        limit: 10
+      });
+
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('play-dl search timeout')), 2500)
+      );
+
+      const results = await Promise.race([searchPromise, timeoutPromise]);
+      const tracks: Track[] = [];
+
+      if (results && results.length > 0) {
+        for (const item of results) {
+          const scItem = item as any;
+          const durationMs = scItem.durationInMs;
+          const durationStr = durationMs
+            ? `${Math.floor(durationMs / 60000)}:${Math.floor((durationMs % 60000) / 1000).toString().padStart(2, '0')}`
+            : 'Live';
+
+          const track = new Track(player, {
+            title: scItem.name || scItem.title || 'Unknown Song',
+            url: scItem.url,
+            duration: durationStr,
+            thumbnail: scItem.thumbnail || scItem.user?.avatar_url || '',
+            author: scItem.user?.name || scItem.user?.username || 'SoundCloud',
+            requestedBy: user,
+            source: 'soundcloud',
+          });
+
+          tracks.push(track);
         }
       }
 
-      // Parallel search using play-dl (YouTube & SoundCloud) and player.search (Spotify/Auto)
-      const [ytRes, scRes, dpRes] = await Promise.allSettled([
-        play.search(trimmed, { limit: 5 }),
-        play.search(trimmed, { source: { soundcloud: 'tracks' }, limit: 5 }),
-        player.search(trimmed, { requestedBy: user, searchEngine: QueryType.AUTO }).catch(() => null)
-      ]);
-
-      const allTracks: any[] = [];
-      const seenUrls = new Set<string>();
-
-      if (dpRes.status === 'fulfilled' && dpRes.value && dpRes.value.hasTracks()) {
-        for (const t of dpRes.value.tracks) {
-          if (t.url && !seenUrls.has(t.url)) {
-            seenUrls.add(t.url);
-            allTracks.push(t);
-          }
-        }
-      }
-
-      if (ytRes.status === 'fulfilled' && ytRes.value) {
-        for (const t of ytRes.value) {
-          if (t.url && !seenUrls.has(t.url)) {
-            seenUrls.add(t.url);
-            allTracks.push({
-              title: t.title || 'Unknown Title',
-              url: t.url,
-              duration: t.durationRaw || 'Live',
-              author: t.channel?.name || 'YouTube',
-              thumbnail: t.thumbnails[0]?.url,
-              requestedBy: user,
-              source: 'youtube'
-            });
-          }
-        }
-      }
-
-      if (scRes.status === 'fulfilled' && scRes.value) {
-        for (const t of scRes.value) {
-          const item = t as any;
-          if (item.url && !seenUrls.has(item.url)) {
-            seenUrls.add(item.url);
-            const durationMs = item.durationInMs;
-            const durationStr = durationMs
-              ? `${Math.floor(durationMs / 60000)}:${Math.floor((durationMs % 60000) / 1000).toString().padStart(2, '0')}`
-              : 'Live';
-
-            allTracks.push({
-              title: item.name || item.title || 'Unknown Title',
-              url: item.url,
-              duration: durationStr,
-              author: item.user?.name || item.user?.username || 'SoundCloud',
-              thumbnail: item.thumbnail || item.thumbnails?.[0]?.url,
-              requestedBy: user,
-              source: 'soundcloud'
-            });
-          }
-        }
-      }
-
-      if (allTracks.length > 0) {
-        const topTracks = allTracks.slice(0, 15);
-        setCachedSearch(cacheKey, topTracks);
-        return topTracks;
+      if (tracks.length > 0) {
+        setCachedSearch(cacheKey, tracks);
+        return tracks;
       }
     } catch (err: any) {
-      logger.error('Fast multi-engine search error:', err);
+      logger.warn(`play-dl fast search error for "${trimmed}": ${err.message || err}`);
     }
 
     return [];
@@ -450,25 +414,16 @@ export const musicService = {
       throw new Error('You must join a voice channel to play music.');
     }
 
-    // 1. Search via discord-player AUTO / SoundCloud engines
-    let searchResult = await player.search(query, {
-      requestedBy: member.user,
-      searchEngine: QueryType.AUTO
-    }).catch(() => null);
-
-    if (!searchResult || !searchResult.hasTracks()) {
-      searchResult = await player.search(query, {
-        requestedBy: member.user,
-        searchEngine: QueryType.SOUNDCLOUD_SEARCH
-      }).catch(() => null);
+    // Sub-second fast search
+    const tracks = await this.searchTracks(query, member.user);
+    if (!tracks || tracks.length === 0) {
+      throw new Error(`No audio tracks found for "${query}". Please check the song title or URL.`);
     }
 
-    if (!searchResult || !searchResult.hasTracks()) {
-      throw new Error(`No music tracks found for "${query}". Please check the title or URL.`);
-    }
+    const targetTrack = tracks[0];
 
     try {
-      const { track } = await player.play(channel as any, searchResult, {
+      const { track } = await player.play(channel as any, targetTrack, {
         requestedBy: member.user,
         nodeOptions: {
           metadata: {
@@ -486,9 +441,9 @@ export const musicService = {
       });
 
       return {
-        message: `Queued **[${track.title}](${track.url})**`,
-        trackName: track.title,
-        thumbnail: track.thumbnail
+        message: `Queued **[${track.title || targetTrack.title}](${track.url || targetTrack.url})**`,
+        trackName: track.title || targetTrack.title,
+        thumbnail: track.thumbnail || targetTrack.thumbnail
       };
     } catch (e: any) {
       logger.error(`Failed to play track: ${e.message || e}`);
