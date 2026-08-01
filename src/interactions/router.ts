@@ -37,6 +37,9 @@ export async function handleInteraction(interaction: Interaction, client: VeluCl
       return;
     }
 
+    // Immediately acknowledge interaction to Discord within 50ms to prevent "Application did not respond"
+    await middleware.safeDefer(interaction);
+
     // Permission Validation Middleware
     const authorized = await middleware.checkPermissions(interaction, command);
     if (!authorized) return;

@@ -23,7 +23,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const query = interaction.options.getString('query', true);
   const targetUser = interaction.options.getUser('target');
   
-  await interaction.deferReply();
+  await middleware.safeDefer(interaction);
 
   try {
     const gifUrl = await klipyService.search('sticker', query);
@@ -34,15 +34,15 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
     const embed = UIFactory.premium(`✨ Sticker: ${query}`, description, {
       image: gifUrl,
-      footerText: 'Powered by Klipy Stickers'
+      footerText: 'Powered by Velu Stickers'
     });
 
-    await interaction.editReply({ 
+    await middleware.safeReply(interaction, { 
       content: targetUser ? `${targetUser}` : undefined,
       embeds: [embed] 
     });
   } catch (error: any) {
     const embed = UIFactory.error('Sticker Error', error.message || 'Could not fetch sticker.');
-    await interaction.editReply({ embeds: [embed] });
+    await middleware.safeReply(interaction, { embeds: [embed] });
   }
 }
