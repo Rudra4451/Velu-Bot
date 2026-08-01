@@ -14,6 +14,7 @@ import { middleware } from '../../../utils/middleware.js';
 import { stateManager } from '../../../state/manager.js';
 
 export const module = 'Music';
+export const cooldown = 1000;
 
 export const data = new SlashCommandBuilder()
   .setName('play')
