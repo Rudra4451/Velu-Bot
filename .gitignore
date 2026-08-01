@@ -1,6 +1,33 @@
+# Dependencies
 node_modules/
+
+# Environment
 .env
-.DS_Store
-*.log
+.env.local
+.env.*.local
+
+# Build output
 dist/
 *.tsbuildinfo
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+
+# Runtime
+*.pid
+*.seed
+
+# Coverage
+coverage/

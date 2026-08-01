@@ -1,7 +1,22 @@
 services:
-  - type: worker
-    name: velu-discord-bot
-    env: docker
-    dockerfilePath: Dockerfile
+  - type: web
+    name: velu-bot
+    runtime: docker
+    dockerfilePath: ./Dockerfile
     plan: free
+    region: oregon
     autoDeploy: true
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: DISCORD_CLIENT_ID
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: KLIPY_API_KEY
+        sync: false

@@ -1,7 +1,7 @@
 {
   "name": "velu-bot",
-  "version": "2.0.0",
-  "description": "Velu - Premium Zero-Persistence Discord Bot",
+  "version": "3.0.0",
+  "description": "Velu — Premium Music, Security & Games Discord Bot. 37 slash commands, studio 48kHz audio, multi-engine search, autoplay, auto-mod, mini-games & 24/7 uptime.",
   "main": "index.ts",
   "type": "module",
   "scripts": {
@@ -11,6 +11,27 @@
     "typecheck": "tsc --noEmit",
     "deploy": "tsx src/scripts/deploy.ts"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Rudra4451/Velu-Bot.git"
+  },
+  "keywords": [
+    "discord",
+    "discord-bot",
+    "music-bot",
+    "moderation",
+    "discord.js",
+    "typescript",
+    "games",
+    "autoplay",
+    "slash-commands"
+  ],
+  "author": "Rudra4451",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Rudra4451/Velu-Bot/issues"
+  },
+  "homepage": "https://github.com/Rudra4451/Velu-Bot#readme",
   "dependencies": {
     "@discord-player/extractor": "^7.2.0",
     "@discordjs/voice": "^0.19.2",
@@ -37,6 +58,6 @@
     "typescript": "^5.9.3"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.0.0"
   }
 }
