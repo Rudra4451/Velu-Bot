@@ -13,6 +13,59 @@ app.get(['/', '/healthz', '/ping'], (_req, res) => {
   res.status(200).json({ status: 'ok', uptime: process.uptime(), bot: 'Velu', timestamp: new Date().toISOString() });
 });
 
+// Public Terms of Service endpoint for Discord Developer Portal
+app.get('/terms', (_req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8"><title>Velu Bot — Terms of Service</title>
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0F0F1A; color: #EEEEEE; padding: 40px; max-width: 800px; margin: 0 auto; line-height: 1.6; }
+        h1 { color: #8A2BE2; } h2 { color: #00F5D4; margin-top: 30px; }
+        a { color: #00B4D8; }
+      </style>
+    </head>
+    <body>
+      <h1>Terms of Service — Velu Bot</h1>
+      <p>Last updated: August 2026</p>
+      <h2>1. Agreement to Terms</h2>
+      <p>By inviting or using Velu Bot in your Discord server, you agree to comply with these Terms of Service and Discord's Terms of Service.</p>
+      <h2>2. Bot Usage</h2>
+      <p>Velu provides high-performance music playback, moderation, and server utility commands. Abuse, automated spamming, or exploitation of the bot is prohibited.</p>
+      <h2>3. Availability</h2>
+      <p>Velu is provided "as is" with 24/7 uptime. Service may occasionally undergo maintenance or updates.</p>
+    </body>
+    </html>
+  `);
+});
+
+// Public Privacy Policy endpoint for Discord Developer Portal
+app.get('/privacy', (_req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8"><title>Velu Bot — Privacy Policy</title>
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0F0F1A; color: #EEEEEE; padding: 40px; max-width: 800px; margin: 0 auto; line-height: 1.6; }
+        h1 { color: #8A2BE2; } h2 { color: #00F5D4; margin-top: 30px; }
+      </style>
+    </head>
+    <body>
+      <h1>Privacy Policy — Velu Bot</h1>
+      <p>Last updated: August 2026</p>
+      <h2>1. Data We Collect</h2>
+      <p>Velu collects minimal data strictly necessary for feature functionality: Discord Guild IDs, User IDs for command preferences, and active music queue state.</p>
+      <h2>2. Data Usage</h2>
+      <p>Collected data is used solely to store server configuration settings and user preferences. We do NOT sell or share data with third parties.</p>
+      <h2>3. Data Deletion</h2>
+      <p>Server administrators can request complete data removal by removing the bot from their server or contacting the bot owner.</p>
+    </body>
+    </html>
+  `);
+});
+
 export function startApiServer(client: VeluClient, port: number = 3001) {
   // Public Bot Stats
   app.get('/api/stats', (_req, res) => {
