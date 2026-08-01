@@ -133,7 +133,9 @@ export async function handleInteraction(interaction: Interaction, client: VeluCl
     try {
       await command.autocomplete(interaction as unknown as ChatInputCommandInteraction, client);
     } catch (error: any) {
-      logger.error(`Autocomplete error for /${interaction.commandName}`, error);
+      if (error?.code !== 40060) {
+        logger.error(`Autocomplete error for /${interaction.commandName}`, error);
+      }
     }
   }
 }
