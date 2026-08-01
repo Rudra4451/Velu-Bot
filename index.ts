@@ -1,6 +1,4 @@
 import { Client, GatewayIntentBits, Options } from 'discord.js';
-import { Player } from 'discord-player';
-import { DefaultExtractors } from '@discord-player/extractor';
 import { config } from './src/config/index.js';
 import { logger } from './src/utils/logger.js';
 import { loadEvents } from './src/events/loader.js';
@@ -50,12 +48,6 @@ const client = new Client({
   }
 }) as VeluClient;
 
-export const player = new Player(client, {
-  skipFFmpeg: false,
-});
-
-// Extractors loaded during bootstrap phase
-
 // ── Crash Protection: Never let the bot process die ──────────────
 const shutdown = () => {
   logger.info('Shutdown signal received. Clearing resources and logging out...');
@@ -102,14 +94,11 @@ async function bootstrap() {
     // 0. Start Supabase cache load (non-blocking, race with loaders)
     const dbPromise = db.loadFromSupabase();
 
-    // 1. Load components, events, commands, and extractors IN PARALLEL
+    // 1. Load components, events, and commands IN PARALLEL
     const [, , commandData] = await Promise.all([
       loadComponents(client),
       loadEvents(client),
       loadCommands(client),
-      player.extractors.loadMulti(DefaultExtractors).catch(err => {
-        logger.error('Failed to load default player extractors:', err);
-      }),
     ]);
 
     // Wait for DB load (may have already finished)
