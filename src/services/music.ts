@@ -417,8 +417,42 @@ export const musicService = {
     if (cached && Date.now() < cached.expiresAt) return cached.songs;
 
     try {
+      let searchQuery = trimmed;
+      const validation = await play.validate(trimmed).catch(() => 'search');
+
+      if (validation === 'yt_video' || validation === 'yt_playlist') {
+        try {
+          const ytInfo = await play.video_basic_info(trimmed);
+          const title = ytInfo.video_details.title || '';
+          const channel = ytInfo.video_details.channel?.name || '';
+          searchQuery = `${title} ${channel}`.trim();
+        } catch {}
+      } else if (validation === 'sp_track') {
+        try {
+          const spData: any = await play.spotify(trimmed);
+          searchQuery = `${spData.name} ${spData.artists?.[0]?.name || ''}`.trim();
+        } catch {}
+      } else if (validation === 'so_track') {
+        try {
+          const scInfo: any = await play.soundcloud(trimmed);
+          const song: Song = {
+            title: scInfo.name || scInfo.title || 'SoundCloud Track',
+            url: scInfo.permalink_url || scInfo.url,
+            duration: scInfo.durationInMs
+              ? `${Math.floor(scInfo.durationInMs / 60000)}:${Math.floor((scInfo.durationInMs % 60000) / 1000).toString().padStart(2, '0')}`
+              : 'Live',
+            thumbnail: scInfo.thumbnail || scInfo.user?.avatar_url || '',
+            requester: user.tag || user.username || 'User',
+            author: scInfo.user?.name || scInfo.user?.username || 'Artist',
+            source: 'soundcloud'
+          };
+          searchCache.set(cacheKey, { songs: [song], expiresAt: Date.now() + 60_000 });
+          return [song];
+        } catch {}
+      }
+
       const results = await Promise.race([
-        play.search(trimmed, { source: { soundcloud: 'tracks' }, limit: 10 }),
+        play.search(searchQuery, { source: { soundcloud: 'tracks' }, limit: 10 }),
         new Promise<any[]>((_, reject) => setTimeout(() => reject(new Error('search timeout')), 2500))
       ]);
 
