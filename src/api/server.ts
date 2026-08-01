@@ -1,26 +1,21 @@
 import express from 'express';
 import cors from 'cors';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import { db } from '../state/db.js';
 import { logger } from '../utils/logger.js';
 import type { VeluClient } from '../types/index.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
 // Health check endpoint for Render / cloud monitoring
-app.get('/healthz', (req, res) => {
-  res.status(200).send('OK');
+app.get('/healthz', (_req, res) => {
+  res.status(200).json({ status: 'ok', uptime: process.uptime() });
 });
 
 export function startApiServer(client: VeluClient, port: number = 3001) {
   // Public Bot Stats
-  app.get('/api/stats', (req, res) => {
+  app.get('/api/stats', (_req, res) => {
     res.json({
       servers: client.guilds.cache.size,
       users: client.users.cache.size,
@@ -90,13 +85,26 @@ export function startApiServer(client: VeluClient, port: number = 3001) {
   app.listen(port, () => {
     logger.info(`🌐 Velu API Server running on http://localhost:${port}`);
 
-    // Self-Ping Keep-Alive for Render / Cloud Hosts (prevents 15-min inactivity sleep)
-    const renderUrl = process.env.RENDER_EXTERNAL_URL;
-    if (renderUrl) {
+    // ── Self-Ping Keep-Alive (prevents Render free-tier 15-min sleep) ──
+    // Uses RENDER_EXTERNAL_URL if set, otherwise hardcoded production URL
+    const keepAliveUrl = process.env.RENDER_EXTERNAL_URL || 'https://velu-bot.onrender.com';
+    
+    // Only activate in production / when PORT is set by Render
+    if (process.env.PORT || process.env.RENDER_EXTERNAL_URL) {
+      // Ping every 4 minutes (well under Render's 15-min timeout)
+      const PING_INTERVAL_MS = 4 * 60 * 1000;
+      
       setInterval(() => {
-        fetch(`${renderUrl}/healthz`).catch(() => {});
-      }, 8 * 60 * 1000); // Ping every 8 minutes
-      logger.info(`🔄 Keep-Alive Ping active for: ${renderUrl}/healthz`);
+        fetch(`${keepAliveUrl}/healthz`)
+          .then(res => {
+            if (!res.ok) logger.warn(`Keep-alive ping returned status ${res.status}`);
+          })
+          .catch(err => {
+            logger.warn(`Keep-alive ping failed: ${err.message || err}`);
+          });
+      }, PING_INTERVAL_MS);
+      
+      logger.info(`🔄 Keep-Alive active: pinging ${keepAliveUrl}/healthz every 4 minutes`);
     }
   });
 }
