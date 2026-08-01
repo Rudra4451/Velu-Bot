@@ -3,7 +3,9 @@ import { UIFactory } from '../ui/factory.js';
 import { logger } from '../utils/logger.js';
 import { player } from '../../index.js';
 import { stateManager } from '../state/manager.js';
-import { QueueRepeatMode, QueryType } from 'discord-player';
+import { QueueRepeatMode, QueryType, onBeforeCreateStream } from 'discord-player';
+import play from 'play-dl';
+import youtubeDl from 'youtube-dl-exec';
 
 export interface Song {
   title: string;
@@ -90,6 +92,54 @@ export function createMusicControlRow(paused: boolean = false, repeatMode: numbe
       .setStyle(ButtonStyle.Secondary),
   );
 }
+
+// Audio Stream Interceptor — ultra-fast yt-dlp direct URL resolution & SoundCloud fallback
+onBeforeCreateStream(async (track, source) => {
+  logger.debug(`Stream interceptor resolving track: "${track.title}" (source: ${source}, url: ${track.url})`);
+  try {
+    // 1. Direct SoundCloud Stream
+    if (track.url.includes('soundcloud.com') || source === 'soundcloud') {
+      try {
+        const scStream = await play.stream(track.url);
+        if (scStream?.stream) return scStream.stream;
+      } catch (scErr: any) {
+        logger.warn(`Direct SoundCloud stream failed: ${scErr.message || scErr}`);
+      }
+    }
+
+    // 2. High-speed yt-dlp direct audio URL resolution with 7s timeout
+    try {
+      const output: any = await Promise.race([
+        youtubeDl(track.url, {
+          dumpSingleJson: true,
+          noCheckCertificates: true,
+          noWarnings: true,
+          preferFreeFormats: true,
+          format: 'bestaudio/best',
+        }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('yt-dlp stream timeout')), 7000))
+      ]);
+      if (output && output.url) {
+        logger.debug(`yt-dlp stream URL successfully resolved for "${track.title}"`);
+        return output.url;
+      }
+    } catch (ytErr: any) {
+      logger.warn(`yt-dlp stream extraction failed for "${track.title}": ${ytErr.message || ytErr}`);
+    }
+
+    // 3. Fallback: SoundCloud search + stream
+    const scSearchQuery = `${track.title} ${track.author || ''}`.trim();
+    logger.debug(`Falling back to SoundCloud stream for: "${scSearchQuery}"`);
+    const scResults = await play.search(scSearchQuery, { source: { soundcloud: 'tracks' }, limit: 1 });
+    if (scResults && scResults.length > 0) {
+      const scStream = await play.stream(scResults[0].url);
+      if (scStream?.stream) return scStream.stream;
+    }
+  } catch (err: any) {
+    logger.error(`Error in onBeforeCreateStream for track "${track.title}":`, err);
+  }
+  return null;
+});
 
 // Player Events Listeners
 player.events.on('playerStart', async (queue, track) => {
@@ -291,108 +341,104 @@ export const musicService = {
   },
 
   /**
-   * Ultra-fast multi-engine search with 2-second race timeout, typo tolerance & lyric matching.
+   * Ultra-fast multi-engine search via play-dl & discord-player with 2.5-second timeout.
    */
   async searchTracks(query: string, user: any): Promise<any[]> {
     const trimmed = query.trim();
+    if (!trimmed) return [];
+
     const cacheKey = trimmed.toLowerCase();
     const cached = getCachedSearch(cacheKey);
     if (cached) return cached;
 
     const isUrl = /^https?:\/\//i.test(trimmed);
 
-    if (isUrl) {
-      const res = await player.search(trimmed, {
-        requestedBy: user,
-        searchEngine: QueryType.AUTO
-      });
-      if (res.hasTracks()) {
-        const tracks = res.tracks.slice(0, 10);
-        setCachedSearch(cacheKey, tracks);
-        return tracks;
-      }
-      return [];
-    }
-
-    // Multi-engine parallel search — race with 2s timeout
-    const engineResults: any[][] = [[], [], []];
-
-    const p1 = player.search(trimmed, { requestedBy: user, searchEngine: QueryType.YOUTUBE_SEARCH })
-      .then(res => { if (res?.hasTracks()) engineResults[0] = res.tracks; }).catch(() => {});
-    const p2 = player.search(trimmed, { requestedBy: user, searchEngine: QueryType.SPOTIFY_SEARCH })
-      .then(res => { if (res?.hasTracks()) engineResults[1] = res.tracks; }).catch(() => {});
-    const p3 = player.search(trimmed, { requestedBy: user, searchEngine: QueryType.AUTO })
-      .then(res => { if (res?.hasTracks()) engineResults[2] = res.tracks; }).catch(() => {});
-    
-    await Promise.race([
-      Promise.all([p1, p2, p3]),
-      new Promise(resolve => setTimeout(resolve, 2000))
-    ]);
-
-    const allTracks: any[] = [];
-    const seenUrls = new Set<string>();
-
-    for (const tracks of engineResults) {
-      for (const track of tracks) {
-        if (!seenUrls.has(track.url)) {
-          seenUrls.add(track.url);
-          allTracks.push(track);
+    try {
+      if (isUrl) {
+        if (trimmed.includes('soundcloud.com')) {
+          const scInfo = await play.soundcloud(trimmed);
+          if (scInfo) {
+            const track = {
+              title: (scInfo as any).name || 'SoundCloud Track',
+              url: trimmed,
+              duration: '0:00',
+              author: 'SoundCloud',
+              thumbnail: undefined,
+              requestedBy: user,
+              source: 'soundcloud'
+            };
+            setCachedSearch(cacheKey, [track]);
+            return [track];
+          }
         }
       }
-    }
 
-    // Secondary fallback for Lyrics / Middle of song lines or Heavy Typos
-    if (allTracks.length === 0) {
-      try {
-        const [lyricsRes, songRes] = await Promise.allSettled([
-          player.search(`${trimmed} lyrics`, { requestedBy: user, searchEngine: QueryType.YOUTUBE_SEARCH }),
-          player.search(`${trimmed} song`, { requestedBy: user, searchEngine: QueryType.YOUTUBE_SEARCH })
-        ]);
+      // Parallel search using play-dl (YouTube & SoundCloud) and player.search (Spotify/Auto)
+      const [ytRes, scRes, dpRes] = await Promise.allSettled([
+        play.search(trimmed, { limit: 5 }),
+        play.search(trimmed, { source: { soundcloud: 'tracks' }, limit: 5 }),
+        player.search(trimmed, { requestedBy: user, searchEngine: QueryType.AUTO }).catch(() => null)
+      ]);
 
-        if (lyricsRes.status === 'fulfilled' && lyricsRes.value.hasTracks()) {
-          for (const t of lyricsRes.value.tracks) {
-            if (!seenUrls.has(t.url)) { seenUrls.add(t.url); allTracks.push(t); }
+      const allTracks: any[] = [];
+      const seenUrls = new Set<string>();
+
+      if (dpRes.status === 'fulfilled' && dpRes.value && dpRes.value.hasTracks()) {
+        for (const t of dpRes.value.tracks) {
+          if (t.url && !seenUrls.has(t.url)) {
+            seenUrls.add(t.url);
+            allTracks.push(t);
           }
         }
-        if (songRes.status === 'fulfilled' && songRes.value.hasTracks()) {
-          for (const t of songRes.value.tracks) {
-            if (!seenUrls.has(t.url)) { seenUrls.add(t.url); allTracks.push(t); }
+      }
+
+      if (ytRes.status === 'fulfilled' && ytRes.value) {
+        for (const t of ytRes.value) {
+          if (t.url && !seenUrls.has(t.url)) {
+            seenUrls.add(t.url);
+            allTracks.push({
+              title: t.title || 'Unknown Title',
+              url: t.url,
+              duration: t.durationRaw || 'Live',
+              author: t.channel?.name || 'YouTube',
+              thumbnail: t.thumbnails[0]?.url,
+              requestedBy: user,
+              source: 'youtube'
+            });
           }
         }
-      } catch {}
-    }
+      }
 
-    // Advanced Typo-Tolerant & Relevance Scoring
-    if (allTracks.length > 0) {
-      const queryWords = trimmed.toLowerCase().split(/\s+/).filter(w => w.length >= 2);
-      const scoreTrack = (track: any) => {
-        const target = `${track.title} ${track.author || ''}`.toLowerCase();
-        const targetWords = target.split(/\s+/);
-        let score = 0;
+      if (scRes.status === 'fulfilled' && scRes.value) {
+        for (const t of scRes.value) {
+          const item = t as any;
+          if (item.url && !seenUrls.has(item.url)) {
+            seenUrls.add(item.url);
+            const durationMs = item.durationInMs;
+            const durationStr = durationMs
+              ? `${Math.floor(durationMs / 60000)}:${Math.floor((durationMs % 60000) / 1000).toString().padStart(2, '0')}`
+              : 'Live';
 
-        // Exact phrase match
-        if (target.includes(trimmed.toLowerCase())) score += 60;
-
-        // Word-level fuzzy & typo matching
-        for (const qWord of queryWords) {
-          for (const tWord of targetWords) {
-            if (isFuzzyWordMatch(qWord, tWord)) {
-              score += 15;
-              break;
-            }
+            allTracks.push({
+              title: item.name || item.title || 'Unknown Title',
+              url: item.url,
+              duration: durationStr,
+              author: item.user?.name || item.user?.username || 'SoundCloud',
+              thumbnail: item.thumbnail || item.thumbnails?.[0]?.url,
+              requestedBy: user,
+              source: 'soundcloud'
+            });
           }
         }
+      }
 
-        // Official / High quality track bonus
-        if (target.includes('official') || target.includes('lyric') || target.includes('audio')) score += 5;
-        return score;
-      };
-
-      allTracks.sort((a, b) => scoreTrack(b) - scoreTrack(a));
-      
-      const topTracks = allTracks.slice(0, 15);
-      setCachedSearch(cacheKey, topTracks);
-      return topTracks;
+      if (allTracks.length > 0) {
+        const topTracks = allTracks.slice(0, 15);
+        setCachedSearch(cacheKey, topTracks);
+        return topTracks;
+      }
+    } catch (err: any) {
+      logger.error('Fast multi-engine search error:', err);
     }
 
     return [];
@@ -404,24 +450,18 @@ export const musicService = {
       throw new Error('You must join a voice channel to play music.');
     }
 
-    let searchResult = await player.search(query, {
-      requestedBy: member.user,
-      searchEngine: /^https?:\/\//i.test(query) ? QueryType.AUTO : QueryType.YOUTUBE_SEARCH
-    });
-
-    if (!searchResult.hasTracks()) {
-      const fallbackTracks = await this.searchTracks(query, member.user);
-      if (fallbackTracks.length > 0) {
-        searchResult = { hasTracks: () => true, tracks: fallbackTracks } as any;
-      }
-    }
-
-    if (!searchResult.hasTracks()) {
+    // 1. Search using fast multi-engine fallback
+    const tracks = await this.searchTracks(query, member.user);
+    if (!tracks || tracks.length === 0) {
       throw new Error('No audio tracks found for that search query.');
     }
 
+    const targetTrack = tracks[0];
+    const targetQuery = targetTrack.url || query;
+
     try {
-      const { track } = await player.play(channel as any, searchResult, {
+      const { track } = await player.play(channel as any, targetQuery, {
+        requestedBy: member.user,
         nodeOptions: {
           metadata: {
             channel: textChannel
@@ -430,7 +470,6 @@ export const musicService = {
           leaveOnEmptyCooldown: 180_000,
           leaveOnEnd: true,
           leaveOnEndCooldown: 180_000,
-          // ── Studio Sound Quality & High Bitrate Stream ──
           bufferingTimeout: 15_000,
           volume: 95,
           selfDeaf: true,
@@ -439,13 +478,13 @@ export const musicService = {
       });
 
       return {
-        message: `Queued **[${track.title}](${track.url})**`,
-        trackName: track.title,
-        thumbnail: track.thumbnail
+        message: `Queued **[${track.title || targetTrack.title}](${track.url || targetTrack.url})**`,
+        trackName: track.title || targetTrack.title,
+        thumbnail: track.thumbnail || targetTrack.thumbnail
       };
     } catch (e: any) {
       logger.error(`Failed to play track: ${e.message || e}`);
-      throw new Error('Could not connect to voice channel or process audio stream.');
+      throw new Error(`Could not connect to voice channel or process audio stream: ${e.message || e}`);
     }
   },
 

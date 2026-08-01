@@ -69,16 +69,8 @@ export async function execute(
       case 'stop': {
         const success = musicService.stop(guildId);
         if (success) {
-          // Delete or clear components of the Now Playing card message directly
-          try {
-            await interaction.message.delete();
-          } catch {
-            const stoppedEmbed = UIFactory.error('Playback Stopped', '⏹️ Disconnected and cleared queue.');
-            await interaction.update({ embeds: [stoppedEmbed], components: [] });
-            return;
-          }
-          const embed = UIFactory.error('Playback Stopped', '⏹️ Disconnected and cleared queue.');
-          await interaction.reply({ embeds: [embed] });
+          const stoppedEmbed = UIFactory.error('Playback Stopped', '⏹️ Disconnected and cleared queue.');
+          await interaction.update({ embeds: [stoppedEmbed], components: [] });
         } else {
           const embed = UIFactory.warning('Not Playing', 'No active player to stop.');
           await middleware.safeReply(interaction, { embeds: [embed], ephemeral: true });

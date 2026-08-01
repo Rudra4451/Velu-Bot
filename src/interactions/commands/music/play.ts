@@ -48,48 +48,26 @@ export async function autocomplete(interaction: AutocompleteInteraction): Promis
 }
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  if (!interaction.guild || !(interaction.member instanceof GuildMember)) return;
+  if (!interaction.guild) return;
 
-  const member = interaction.member;
-  if (!member.voice.channel) {
+  await middleware.safeDefer(interaction);
+
+  const member = interaction.member as GuildMember;
+  if (!member || !member.voice?.channel) {
     const embed = UIFactory.warning('Voice Channel Required', 'You must be in a voice channel to play music.');
-    return void await middleware.safeReply(interaction, { embeds: [embed], ephemeral: true });
+    await middleware.safeReply(interaction, { embeds: [embed], ephemeral: true });
+    return;
   }
   
   const query = interaction.options.getString('query', true);
-  const textChannel = interaction.channel as TextChannel;
+  const textChannel = (interaction.channel as TextChannel) || undefined;
 
-  await interaction.deferReply();
-
-  const isUrl = /^https?:\/\//i.test(query);
-
-  if (isUrl) {
-    try {
-      const result = await musicService.play(member, query, textChannel);
-      const embed = UIFactory.success('Music Queued', result.message, { thumbnail: result.thumbnail });
-      await interaction.editReply({ embeds: [embed] });
-    } catch (error: any) {
-      const embed = UIFactory.error('Playback Error', error.message || 'Failed to play track.');
-      await interaction.editReply({ embeds: [embed] });
-    }
-    return;
-  }
-
-  // Search & auto-play top match for text queries
   try {
-    const tracks = await musicService.searchTracks(query, interaction.user);
-    if (tracks.length === 0) {
-      const embed = UIFactory.error('No Results', `No music tracks found for **"${query}"** across YouTube & SoundCloud.`);
-      return void await interaction.editReply({ embeds: [embed] });
-    }
-
-    // Play the top #1 matching song immediately
-    const topTrack = tracks[0];
-    const result = await musicService.play(member, topTrack.url, textChannel);
+    const result = await musicService.play(member, query, textChannel as TextChannel);
     const embed = UIFactory.success('Music Queued', result.message, { thumbnail: result.thumbnail });
-    await interaction.editReply({ embeds: [embed] });
+    await middleware.safeReply(interaction, { embeds: [embed] });
   } catch (error: any) {
-    const embed = UIFactory.error('Search Error', error.message || 'Failed to process song search.');
-    await interaction.editReply({ embeds: [embed] });
+    const embed = UIFactory.error('Playback Error', error.message || 'Failed to process music play request.');
+    await middleware.safeReply(interaction, { embeds: [embed], ephemeral: true });
   }
 }

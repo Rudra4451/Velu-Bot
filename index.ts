@@ -54,8 +54,7 @@ export const player = new Player(client, {
   skipFFmpeg: false,
 });
 
-// Load standard extractors automatically
-player.extractors.loadMulti(DefaultExtractors);
+// Extractors loaded during bootstrap phase
 
 // ── Crash Protection: Never let the bot process die ──────────────
 const shutdown = () => {
@@ -103,11 +102,14 @@ async function bootstrap() {
     // 0. Start Supabase cache load (non-blocking, race with loaders)
     const dbPromise = db.loadFromSupabase();
 
-    // 1. Load components, events, and commands IN PARALLEL
+    // 1. Load components, events, commands, and extractors IN PARALLEL
     const [, , commandData] = await Promise.all([
       loadComponents(client),
       loadEvents(client),
       loadCommands(client),
+      player.extractors.loadMulti(DefaultExtractors).catch(err => {
+        logger.error('Failed to load default player extractors:', err);
+      }),
     ]);
 
     // Wait for DB load (may have already finished)

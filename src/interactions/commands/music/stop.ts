@@ -11,7 +11,6 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!interaction.guild) return;
-  if (!interaction.guild) return;
   
   const stopped = musicService.stop(interaction.guild.id);
   
