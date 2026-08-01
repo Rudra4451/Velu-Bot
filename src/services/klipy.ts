@@ -3,7 +3,7 @@ import { logger } from '../utils/logger.js';
 
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const CACHE_MAX_SIZE = 100;
-const REQUEST_TIMEOUT_MS = 4000;
+const REQUEST_TIMEOUT_MS = 1200; // 1.2 seconds max timeout for instant response
 
 interface CacheEntry {
   url: string;

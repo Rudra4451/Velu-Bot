@@ -98,11 +98,13 @@ async function bootstrap() {
     // 2. Connect to Discord Gateway FIRST (bot comes online faster)
     await client.login(config.DISCORD_TOKEN);
 
-    // 3. Register slash commands AFTER login (non-blocking)
+    // 3. Register slash commands in background after 10s delay (avoids REST rate-limiting during boot)
     if (commandData && commandData.length > 0) {
-      loadCommands.registerToDiscord(commandData, config).catch(err => {
-        logger.error('Background command registration failed:', err);
-      });
+      setTimeout(() => {
+        loadCommands.registerToDiscord(commandData, config).catch(err => {
+          logger.error('Background command registration failed:', err);
+        });
+      }, 10_000);
     }
 
     // 4. Start API Server

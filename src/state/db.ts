@@ -30,7 +30,7 @@ export const db = {
       logger.info('🔄 Loading cached data from Supabase...');
 
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Supabase network timeout')), 1500)
+        setTimeout(() => reject(new Error('Supabase network timeout')), 400)
       );
 
       const fetchPromise = (async () => {
