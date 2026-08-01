@@ -30,99 +30,130 @@ function cacheGet(key: string): string | null {
   return entry.url;
 }
 
-// Curated fallback GIFs / Stickers
+// High quality fallback sticker URLs
 const FALLBACK_GIFS: Record<string, string[]> = {
   hug: [
-    'https://media.tenor.com/d9TfT_N5K58AAAAC/anime-hug.gif',
-    'https://media.tenor.com/kCZfb3JNzIACAAAAC/gocchuumon-wa-usagi-desu-ka-gochiusa.gif',
+    'https://media.giphy.com/media/lrr91983vOTW8/giphy.gif',
+    'https://media.giphy.com/media/u9BxFE6544a6A/giphy.gif',
   ],
   pat: [
-    'https://media.tenor.com/8DaC-vnnn5gAAAAC/pat-head-anime.gif',
-    'https://media.tenor.com/1YlET68Ew58AAAAC/headpat-anime.gif',
+    'https://media.giphy.com/media/5tmRHw7ScrvwNJpTC4/giphy.gif',
+    'https://media.giphy.com/media/L2z7ILmjDJa92/giphy.gif',
   ],
   slap: [
-    'https://media.tenor.com/wOBntxRcj7gAAAAC/slap-anime.gif',
+    'https://media.giphy.com/media/Gf3AUz3eBNbTW/giphy.gif',
   ],
   kiss: [
-    'https://media.tenor.com/3wO64ea7k28AAAAC/anime-kiss.gif',
+    'https://media.giphy.com/media/G3va39rn8E4A8/giphy.gif',
   ],
   dance: [
-    'https://media.tenor.com/02h38S58x-gAAAAC/anime-dance.gif',
+    'https://media.giphy.com/media/13CoXDiaCcCvg4/giphy.gif',
+    'https://media.giphy.com/media/blSTtZehjAZ8I/giphy.gif',
   ],
   welcome: [
-    'https://media.tenor.com/Fw7F1Z6wE-0AAAAC/anime-welcome.gif',
+    'https://media.giphy.com/media/xT9IgG50Vm3z0g0uUE/giphy.gif',
   ],
   goodbye: [
-    'https://media.tenor.com/d_nZ_qY6E-0AAAAC/anime-goodbye.gif',
-  ],
-  victory: [
-    'https://media.tenor.com/v8F1Z6wE-0AAAAC/anime-victory.gif',
-  ],
-  ban: [
-    'https://media.tenor.com/b8F1Z6wE-0AAAAC/anime-ban.gif',
-  ],
-  kick: [
-    'https://media.tenor.com/k8F1Z6wE-0AAAAC/anime-kick.gif',
-  ],
-  timeout: [
-    'https://media.tenor.com/t8F1Z6wE-0AAAAC/anime-timeout.gif',
+    'https://media.giphy.com/media/PSxPL6jjDnpmM/giphy.gif',
   ],
   afk: [
-    'https://media.tenor.com/a8F1Z6wE-0AAAAC/anime-sleep.gif',
+    'https://media.giphy.com/media/d2W7eZX5z62ziqdi/giphy.gif',
   ],
   music: [
-    'https://media.tenor.com/69x-v4W8z-8AAAAC/anime-dance.gif',
+    'https://media.giphy.com/media/l41YkxvUlB1WXivNm/giphy.gif',
   ]
 };
 
 const pickRandom = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
 
-async function fetchFromTenor(query: string, retries: number = 1): Promise<string | null> {
-  // Public Tenor V1 Key commonly used for open integrations
-  const url = `https://g.tenor.com/v1/search?q=${encodeURIComponent(query)}&key=LIVDSRZULELA&limit=15&media_filter=minimal`;
+// Waifu.pics SFW actions map
+const WAIFU_ACTIONS = new Set(['hug', 'pat', 'slap', 'kiss', 'dance', 'cuddle', 'smile', 'wave', 'wink', 'highfive', 'happy', 'blush', 'bite']);
 
+async function fetchFromWaifuPics(action: string): Promise<string | null> {
+  const endpoint = WAIFU_ACTIONS.has(action.toLowerCase()) ? action.toLowerCase() : 'dance';
+  const url = `https://api.waifu.pics/sfw/${endpoint}`;
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-
     const res = await fetch(url, { signal: controller.signal });
     clearTimeout(timer);
-
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
+    if (!res.ok) return null;
     const json = (await res.json()) as any;
-    const results = json?.results;
-    if (!results?.length) return null;
+    return json?.url || null;
+  } catch {
+    return null;
+  }
+}
 
-    const pick = results[Math.floor(Math.random() * Math.min(results.length, 10))];
-    return pick?.media?.[0]?.gif?.url || null;
-  } catch (err: unknown) {
-    logger.warn(`Tenor request failed for "${query}": ${(err as Error).message}`);
-    if (retries > 0) {
-      return fetchFromTenor(query, retries - 1);
-    }
+async function fetchFromGiphy(query: string): Promise<string | null> {
+  // Public Giphy Beta Key for open search
+  const url = `https://api.giphy.com/v1/gifs/search?api_key=dc6zaTOxFJmzC&q=${encodeURIComponent(query)}&limit=10&rating=g`;
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    const json = (await res.json()) as any;
+    const data = json?.data;
+    if (!data?.length) return null;
+    const pick = data[Math.floor(Math.random() * data.length)];
+    return pick?.images?.original?.url || pick?.images?.downsized?.url || null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchFromKlipy(query: string): Promise<string | null> {
+  if (!config.KLIPY_API_KEY) return null;
+  const url = `https://api.klipy.com/api/v1/${config.KLIPY_API_KEY}/gifs/search?q=${encodeURIComponent(query)}`;
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    const json = (await res.json()) as any;
+    const results = json?.data?.data;
+    if (!results?.length) return null;
+    const pick = results[Math.floor(Math.random() * results.length)];
+    return pick?.file?.hd?.gif?.url || pick?.file?.md?.gif?.url || null;
+  } catch {
     return null;
   }
 }
 
 export const klipyService = {
   /**
-   * Returns a GIF / Sticker URL for the given category/query.
+   * Multi-provider GIF / Sticker URL fetcher with zero downtime.
    */
   async search(category: string, query: string): Promise<string> {
-    const cacheKey = `tenor:${category}:${query}`;
+    const cleanQuery = (query || category || 'dance').toLowerCase().trim();
+    const cacheKey = `sticker:${category}:${cleanQuery}`;
     const cached = cacheGet(cacheKey);
     if (cached) return cached;
 
-    // We append "anime" to specific action queries for better styling
-    const searchQuery = ['hug', 'pat', 'slap', 'kiss', 'dance'].includes(query.toLowerCase()) 
-      ? `anime ${query}` 
-      : query;
+    let resultUrl: string | null = null;
 
-    const apiResult = await fetchFromTenor(searchQuery);
-    const url = apiResult ?? pickRandom(FALLBACK_GIFS[category] ?? FALLBACK_GIFS.hug);
+    // 1. If it's a known anime reaction action, try Waifu.pics API first (ultra-fast, HD)
+    if (WAIFU_ACTIONS.has(cleanQuery)) {
+      resultUrl = await fetchFromWaifuPics(cleanQuery);
+    }
 
-    cacheSet(cacheKey, url);
-    return url;
+    // 2. Try Giphy API
+    if (!resultUrl) {
+      resultUrl = await fetchFromGiphy(cleanQuery);
+    }
+
+    // 3. Try Klipy API
+    if (!resultUrl) {
+      resultUrl = await fetchFromKlipy(cleanQuery);
+    }
+
+    // 4. Fallback to curated GIF list
+    const finalUrl = resultUrl || pickRandom(FALLBACK_GIFS[cleanQuery] || FALLBACK_GIFS.hug);
+
+    cacheSet(cacheKey, finalUrl);
+    return finalUrl;
   },
 };

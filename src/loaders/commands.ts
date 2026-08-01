@@ -72,16 +72,18 @@ loadCommands.registerToDiscord = async function(
   try {
     logger.info('Started refreshing application (/) commands.');
 
+    // Always register global commands across ALL servers automatically
+    logger.info('🚀 Registering global application (/) commands across all servers...');
+    await rest.put(
+      Routes.applicationCommands(config.DISCORD_CLIENT_ID),
+      { body: commands }
+    );
+
+    // If DISCORD_GUILD_ID is set, also register guild commands for instant development updates
     if (config.DISCORD_GUILD_ID) {
-      logger.info(`Registering guild-scoped commands to Guild: ${config.DISCORD_GUILD_ID}`);
+      logger.info(`⚡ Registering guild-scoped commands to Guild: ${config.DISCORD_GUILD_ID}`);
       await rest.put(
         Routes.applicationGuildCommands(config.DISCORD_CLIENT_ID, config.DISCORD_GUILD_ID),
-        { body: commands }
-      );
-    } else {
-      logger.info('Registering global application commands.');
-      await rest.put(
-        Routes.applicationCommands(config.DISCORD_CLIENT_ID),
         { body: commands }
       );
     }
