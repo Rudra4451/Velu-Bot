@@ -1,11 +1,10 @@
-import { GuildMember, TextChannel, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
+import { GuildMember, TextChannel, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { UIFactory } from '../ui/factory.js';
 import { logger } from '../utils/logger.js';
 import { player } from '../../index.js';
 import { stateManager } from '../state/manager.js';
-import { QueueRepeatMode, QueryType, Track, onBeforeCreateStream } from 'discord-player';
+import { QueueRepeatMode, Track } from 'discord-player';
 import play from 'play-dl';
-import youtubeDl from 'youtube-dl-exec';
 
 // Initialize play-dl SoundCloud Client ID asynchronously for sub-second search & streaming
 play.getFreeClientID().then(id => {
@@ -103,55 +102,11 @@ export function createMusicControlRow(paused: boolean = false, repeatMode: numbe
   );
 }
 
-// Audio Stream Interceptor — ultra-fast yt-dlp direct URL resolution & SoundCloud fallback
-onBeforeCreateStream(async (track, source) => {
-  logger.debug(`Stream interceptor resolving track: "${track.title}" (source: ${source}, url: ${track.url})`);
-  try {
-    // 1. Direct SoundCloud Stream
-    if (track.url.includes('soundcloud.com') || source === 'soundcloud') {
-      try {
-        const scStream = await play.stream(track.url);
-        if (scStream?.stream) return scStream.stream;
-      } catch (scErr: any) {
-        logger.warn(`Direct SoundCloud stream failed: ${scErr.message || scErr}`);
-      }
-    }
+// ── Player Events ──────────────────────────────────────────────────────────────
+// NOTE: No onBeforeCreateStream — DefaultExtractors handle streaming internally.
+// Overriding it was the root cause of all playback failures (broken ytdl decipher,
+// missing yt-dlp binary, play.stream() Invalid URL on YouTube).
 
-    // 2. High-speed yt-dlp direct audio URL resolution with 7s timeout
-    try {
-      const output: any = await Promise.race([
-        youtubeDl(track.url, {
-          dumpSingleJson: true,
-          noCheckCertificates: true,
-          noWarnings: true,
-          preferFreeFormats: true,
-          format: 'bestaudio/best',
-        }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('yt-dlp stream timeout')), 7000))
-      ]);
-      if (output && output.url) {
-        logger.debug(`yt-dlp stream URL successfully resolved for "${track.title}"`);
-        return output.url;
-      }
-    } catch (ytErr: any) {
-      logger.warn(`yt-dlp stream extraction failed for "${track.title}": ${ytErr.message || ytErr}`);
-    }
-
-    // 3. Fallback: SoundCloud search + stream
-    const scSearchQuery = `${track.title} ${track.author || ''}`.trim();
-    logger.debug(`Falling back to SoundCloud stream for: "${scSearchQuery}"`);
-    const scResults = await play.search(scSearchQuery, { source: { soundcloud: 'tracks' }, limit: 1 });
-    if (scResults && scResults.length > 0) {
-      const scStream = await play.stream(scResults[0].url);
-      if (scStream?.stream) return scStream.stream;
-    }
-  } catch (err: any) {
-    logger.error(`Error in onBeforeCreateStream for track "${track.title}":`, err);
-  }
-  return null;
-});
-
-// Player Events Listeners
 player.events.on('playerStart', async (queue, track) => {
   const textChannel = (queue.metadata as any)?.channel as TextChannel;
   if (!textChannel) return;
@@ -188,8 +143,6 @@ player.events.on('playerStart', async (queue, track) => {
 });
 
 player.events.on('emptyQueue', async (queue) => {
-  const textChannel = (queue.metadata as any)?.channel as TextChannel;
-
   // Autoplay handler for smooth continuous related playback
   if (queue.repeatMode === QueueRepeatMode.AUTOPLAY || queue.repeatMode === (3 as any)) {
     try {
@@ -198,41 +151,31 @@ player.events.on('emptyQueue', async (queue) => {
 
       const cleanTitle = cleanTrackTitle(prevTrack.title);
       const cleanArtist = prevTrack.author ? prevTrack.author.replace(/vevo|official|channel/gi, '').trim() : '';
+      const searchQuery = cleanArtist ? `${cleanArtist} ${cleanTitle}` : `${cleanTitle} song`;
 
-      // High relevance autoplay search query
-      const query = cleanArtist ? `${cleanArtist} ${cleanTitle}` : `${cleanTitle} song`;
-      
-      const searchResult = await player.search(query, {
-        requestedBy: prevTrack.requestedBy || undefined,
-        searchEngine: QueryType.YOUTUBE_SEARCH
-      });
+      // Get voice channel — bot may still be connected during leaveOnEndCooldown
+      const voiceChannel = queue.guild.members.me?.voice?.channel;
+      if (!voiceChannel) return;
 
-      if (searchResult.hasTracks()) {
-        // Exclude songs already played or currently playing
-        const recentUrls = new Set(queue.history.tracks.toArray().map(t => t.url));
-        recentUrls.add(prevTrack.url);
+      // Use player.play() with timeout — handles search + queue + streaming through extractors
+      await Promise.race([
+        player.play(voiceChannel, searchQuery, {
+          nodeOptions: { metadata: queue.metadata },
+          requestedBy: prevTrack.requestedBy || undefined,
+        }),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('autoplay timeout')), 5000))
+      ]);
 
-        const nextTrack = searchResult.tracks.find(t => !recentUrls.has(t.url) && t.title !== prevTrack.title) 
-          || searchResult.tracks.find(t => t.url !== prevTrack.url)
-          || searchResult.tracks[0];
-
-        if (nextTrack) {
-          queue.addTrack(nextTrack);
-          if (!queue.isPlaying()) {
-            await queue.node.play();
-          }
-
-          if (textChannel) {
-            const embed = UIFactory.info(
-              '📻 Autoplay Active',
-              `Next related track: **[${nextTrack.title}](${nextTrack.url})** • \`${nextTrack.duration || 'Live'}\``
-            );
-            textChannel.send({ embeds: [embed] }).catch(() => {});
-          }
-        }
+      const textChannel = (queue.metadata as any)?.channel as TextChannel;
+      if (textChannel) {
+        const embed = UIFactory.info(
+          '📻 Autoplay Active',
+          `Playing a related track based on: **${prevTrack.title}**`
+        );
+        textChannel.send({ embeds: [embed] }).catch(() => {});
       }
     } catch (err: any) {
-      logger.error(`Autoplay recommendation error: ${err.message || err}`);
+      logger.error(`Autoplay error: ${err.message || err}`);
     }
   }
 });
@@ -245,9 +188,9 @@ player.events.on('playerError', (queue, error) => {
   logger.error(`Player connection error in ${queue.guild.id}: ${error.message}`);
 });
 
-// ── Performance & Quality: Cache search results for 60s ──
+// ── Performance & Quality: Cache search results for 60s ──────────────────────
 const searchCache = new Map<string, { tracks: any[]; expiresAt: number }>();
-const SEARCH_CACHE_TTL_MS = 60_000; // increased from 30s to 60s
+const SEARCH_CACHE_TTL_MS = 60_000;
 
 function getCachedSearch(key: string): any[] | null {
   const entry = searchCache.get(key);
@@ -267,43 +210,7 @@ function setCachedSearch(key: string, tracks: any[]): void {
   searchCache.set(key, { tracks, expiresAt: Date.now() + SEARCH_CACHE_TTL_MS });
 }
 
-/** Optimized Levenshtein with early exit for max distance threshold */
-function levenshteinDistance(a: string, b: string, maxDist: number = 3): number {
-  const la = a.length, lb = b.length;
-  if (Math.abs(la - lb) > maxDist) return maxDist + 1; // early exit
-  if (la === 0) return lb;
-  if (lb === 0) return la;
-
-  // Use single-row optimization instead of full matrix (O(n) space vs O(n²))
-  let prev = new Uint8Array(lb + 1);
-  let curr = new Uint8Array(lb + 1);
-  for (let j = 0; j <= lb; j++) prev[j] = j;
-
-  for (let i = 1; i <= la; i++) {
-    curr[0] = i;
-    let rowMin = i; // track min in row for early exit
-    for (let j = 1; j <= lb; j++) {
-      const cost = a.charCodeAt(i - 1) === b.charCodeAt(j - 1) ? 0 : 1;
-      curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost);
-      if (curr[j] < rowMin) rowMin = curr[j];
-    }
-    if (rowMin > maxDist) return maxDist + 1; // early exit: no cell can be under threshold
-    [prev, curr] = [curr, prev];
-  }
-  return prev[lb];
-}
-
-/** Check if two words fuzzy match despite typos or spelling mistakes */
-function isFuzzyWordMatch(queryWord: string, targetWord: string): boolean {
-  if (queryWord === targetWord) return true;
-  if (targetWord.includes(queryWord) || queryWord.includes(targetWord)) return true;
-  if (queryWord.length >= 4 && targetWord.length >= 4) {
-    const maxAllowed = queryWord.length > 6 ? 2 : 1;
-    const dist = levenshteinDistance(queryWord, targetWord, maxAllowed);
-    return dist <= maxAllowed;
-  }
-  return false;
-}
+// ── Music Service ────────────────────────────────────────────────────────────
 
 export const musicService = {
   getQueueInfo(guildId: string): GuildQueueInfo | undefined {
@@ -351,7 +258,9 @@ export const musicService = {
   },
 
   /**
-   * Ultra-fast multi-engine search returning valid Track objects.
+   * Fast multi-engine search for autocomplete and song discovery.
+   * Uses play-dl YouTube search (fast, high quality results) with
+   * discord-player DefaultExtractors as fallback.
    */
   async searchTracks(query: string, user: any): Promise<Track[]> {
     const trimmed = query.trim();
@@ -361,135 +270,106 @@ export const musicService = {
     const cached = getCachedSearch(cacheKey);
     if (cached) return cached;
 
-    // 1. Try discord-player SOUNDCLOUD_SEARCH (fast, yields full valid SoundCloud Track objects)
+    // 1. Fast YouTube search via play-dl (best for autocomplete — fast & accurate)
     try {
-      const searchPromise = player.search(trimmed, {
-        requestedBy: user,
-        searchEngine: QueryType.SOUNDCLOUD_SEARCH
-      });
-
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('SOUNDCLOUD_SEARCH timeout')), 2500)
-      );
-
-      const res = await Promise.race([searchPromise, timeoutPromise]);
-      if (res && res.hasTracks()) {
-        const tracks = res.tracks;
-        setCachedSearch(cacheKey, tracks);
-        return tracks;
-      }
-    } catch (err: any) {
-      logger.warn(`SOUNDCLOUD_SEARCH warning for "${trimmed}": ${err.message || err}`);
-    }
-
-    // 2. Fallback: play-dl search
-    try {
-      const searchPromise = play.search(trimmed, {
-        source: { soundcloud: 'tracks' },
-        limit: 10
-      });
-
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('play-dl search timeout')), 2500)
-      );
-
-      const results = await Promise.race([searchPromise, timeoutPromise]);
-      const tracks: Track[] = [];
+      const results = await Promise.race([
+        play.search(trimmed, { limit: 10, source: { youtube: 'video' } }),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('play-dl search timeout')), 3000))
+      ]);
 
       if (results && results.length > 0) {
-        for (const item of results) {
-          const scItem = item as any;
-          const durationMs = scItem.durationInMs;
-          const durationStr = durationMs
-            ? `${Math.floor(durationMs / 60000)}:${Math.floor((durationMs % 60000) / 1000).toString().padStart(2, '0')}`
-            : 'Live';
-
-          const trackUrl = scItem.permalink_url || scItem.url;
-
-          const track = new Track(player, {
-            title: scItem.name || scItem.title || 'Unknown Song',
-            url: trackUrl,
-            duration: durationStr,
-            thumbnail: scItem.thumbnail || scItem.user?.avatar_url || '',
-            author: scItem.user?.name || scItem.user?.username || 'SoundCloud',
-            requestedBy: user,
-            source: 'soundcloud',
-          });
-
-          tracks.push(track);
-        }
-      }
-
-      if (tracks.length > 0) {
+        const tracks: Track[] = results.map(item => new Track(player, {
+          title: item.title || 'Unknown Song',
+          url: item.url,
+          duration: item.durationRaw || '0:00',
+          thumbnail: item.thumbnails[0]?.url || '',
+          author: item.channel?.name || 'Unknown',
+          requestedBy: user,
+          source: 'youtube',
+        }));
         setCachedSearch(cacheKey, tracks);
         return tracks;
       }
     } catch (err: any) {
-      logger.warn(`play-dl fallback search error for "${trimmed}": ${err.message || err}`);
+      logger.warn(`play-dl search warning for "${trimmed}": ${err.message || err}`);
+    }
+
+    // 2. Fallback: discord-player search via DefaultExtractors (SoundCloud, Spotify, etc.)
+    try {
+      const res = await Promise.race([
+        player.search(trimmed, { requestedBy: user }),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('player.search timeout')), 3000))
+      ]);
+      if (res?.hasTracks()) {
+        setCachedSearch(cacheKey, res.tracks);
+        return res.tracks;
+      }
+    } catch (err: any) {
+      logger.warn(`player search fallback warning for "${trimmed}": ${err.message || err}`);
     }
 
     return [];
   },
 
+  /**
+   * Play music using discord-player's built-in pipeline.
+   * Uses player.play() which handles search, queue creation, voice connection,
+   * and streaming ALL through DefaultExtractors — no broken custom interceptors.
+   */
   async play(member: GuildMember, query: string, textChannel: TextChannel): Promise<{ message: string; trackName: string; thumbnail?: string }> {
     const channel = member.voice.channel;
     if (!channel) {
       throw new Error('You must join a voice channel to play music.');
     }
 
-    // Sub-second fast search
-    const tracks = await this.searchTracks(query, member.user);
-    if (!tracks || tracks.length === 0) {
-      throw new Error(`No audio tracks found for "${query}". Please check the song title or URL.`);
-    }
-
-    const targetTrack = tracks[0];
-
     try {
-      // 1. Get or create queue for guild
-      let queue = player.nodes.get(member.guild.id);
-      if (!queue) {
-        queue = player.nodes.create(member.guild.id, {
-          metadata: { channel: textChannel },
-          leaveOnEmpty: true,
-          leaveOnEmptyCooldown: 180_000,
-          leaveOnEnd: true,
-          leaveOnEndCooldown: 180_000,
-          bufferingTimeout: 5_000,
-          connectionTimeout: 5_000,
-          volume: 95,
-          selfDeaf: true,
-          leaveOnStop: true,
-        });
+      // If query is a YouTube URL, resolve title for reliable playback through extractors.
+      // YouTube URL extractors can be unreliable; title search finds the song on working sources.
+      let searchQuery = query;
+      if (/^https?:\/\/(www\.)?(youtube\.com|youtu\.be)\/.+/i.test(query)) {
+        try {
+          const info = await Promise.race([
+            play.video_basic_info(query),
+            new Promise<never>((_, reject) => setTimeout(() => reject(new Error('URL resolve timeout')), 3000))
+          ]);
+          const title = info.video_details.title || '';
+          const artist = info.video_details.channel?.name || '';
+          searchQuery = `${title} ${artist}`.trim();
+          logger.debug(`Resolved YouTube URL to search query: "${searchQuery}"`);
+        } catch {
+          logger.debug(`Could not resolve YouTube URL, using as-is: "${query}"`);
+        }
       }
 
-      // 2. Connect to voice channel with strict 5s timeout
-      if (!queue.connection) {
-        await Promise.race([
-          queue.connect(channel as any, { deaf: true, timeout: 5_000 }),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Voice connection timed out')), 5000))
-        ]).catch((err) => {
-          logger.warn(`Voice channel connect warning: ${err.message || err}`);
-        });
-      }
+      // player.play() does everything: search → create/reuse queue → connect VC → stream
+      const result = await Promise.race([
+        player.play(channel, searchQuery, {
+          nodeOptions: {
+            metadata: { channel: textChannel },
+            leaveOnEmpty: true,
+            leaveOnEmptyCooldown: 180_000,
+            leaveOnEnd: true,
+            leaveOnEndCooldown: 180_000,
+            bufferingTimeout: 5_000,
+            connectionTimeout: 5_000,
+            volume: 95,
+            selfDeaf: true,
+            leaveOnStop: true,
+          },
+          requestedBy: member.user,
+        }),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Playback request timed out. Please try again.')), 10_000))
+      ]);
 
-      // 3. Add track and start playback asynchronously
-      queue.addTrack(targetTrack);
-
-      if (!queue.isPlaying()) {
-        queue.node.play().catch(err => {
-          logger.warn(`queue.node.play warning: ${err.message || err}`);
-        });
-      }
-
+      const track = result.track;
       return {
-        message: `Queued **[${targetTrack.title}](${targetTrack.url})**`,
-        trackName: targetTrack.title,
-        thumbnail: targetTrack.thumbnail
+        message: `Queued **[${track.title}](${track.url})**`,
+        trackName: track.title,
+        thumbnail: track.thumbnail,
       };
     } catch (e: any) {
-      logger.error(`Failed to play track: ${e.message || e}`);
-      throw new Error(`Could not connect to voice channel or process audio stream: ${e.message || e}`);
+      logger.error(`Failed to play: ${e.message || e}`);
+      throw new Error(e.message || 'Failed to play track. Please try a different song.');
     }
   },
 

@@ -51,7 +51,8 @@ export async function autocomplete(interaction: AutocompleteInteraction): Promis
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!interaction.guild) return;
 
-  await middleware.safeDefer(interaction);
+  // NOTE: safeDefer is already called by the interaction router (router.ts line 41)
+  // Do NOT defer again here — double-defer breaks ephemeral error messages.
 
   const member = interaction.member as GuildMember;
   if (!member || !member.voice?.channel) {
