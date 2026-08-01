@@ -205,8 +205,22 @@ export const permissionManager = {
         'Voice Channel Required',
         '🔒 You must join a voice channel to use music commands and controls.'
       );
-      await middleware.safeReply(interaction, { embeds: [embed], ephemeral: true });
+      await middleware.safeReply(interaction, { embeds: [embed] }, true);
       return false;
+    }
+
+    // Check if bot has Connect & Speak permissions in target voice channel
+    if (guild.members.me) {
+      const permissions = memberVoiceChannel.permissionsFor(guild.members.me);
+      if (permissions && (!permissions.has(PermissionFlagsBits.Connect) || !permissions.has(PermissionFlagsBits.Speak))) {
+        const embed = UIFactory.error(
+          'Voice Permissions Missing',
+          `❌ Velu does not have **Connect** and **Speak** permissions in <#${memberVoiceChannel.id}>!\n\n` +
+          `*Please ask a server admin to grant **Connect** and **Speak** permissions to the bot role in this channel.*`
+        );
+        await middleware.safeReply(interaction, { embeds: [embed] }, true);
+        return false;
+      }
     }
 
     if (botVoiceChannel && memberVoiceChannel.id !== botVoiceChannel.id) {
@@ -214,7 +228,7 @@ export const permissionManager = {
         'Voice Channel Mismatch',
         `🔒 You must be in the same voice channel (<#${botVoiceChannel.id}>) as Velu to use music commands!`
       );
-      await middleware.safeReply(interaction, { embeds: [embed], ephemeral: true });
+      await middleware.safeReply(interaction, { embeds: [embed] }, true);
       return false;
     }
 
