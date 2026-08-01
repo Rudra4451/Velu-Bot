@@ -56,6 +56,7 @@ export async function execute(message: Message, client: VeluClient): Promise<voi
       'Welcome Back!',
       `I have removed your AFK status. You were gone for **${durationText}**.`
     );
+    // Fire-and-forget: don't block message pipeline
     message.reply({ embeds: [embed] }).then(msg => {
       setTimeout(() => msg.delete().catch(() => {}), 5000);
     }).catch(() => {});

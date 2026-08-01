@@ -46,45 +46,49 @@ export function createProgressBar(currentMs: number, totalMs: number, length: nu
   return `\`[${bar}]\``;
 }
 
+// ── Pre-built static button custom IDs (computed once at startup, not every interaction) ──
+const MUSIC_IDS = {
+  toggle_pause: stateManager.create('music', 'toggle_pause'),
+  skip: stateManager.create('music', 'skip'),
+  stop: stateManager.create('music', 'stop'),
+  loop: stateManager.create('music', 'loop'),
+  queue: stateManager.create('music', 'queue'),
+};
+
 /**
  * Creates interactive ActionRows for Music Controls.
+ * Uses pre-computed custom IDs for zero overhead.
  */
 export function createMusicControlRow(paused: boolean = false, repeatMode: number = 0): ActionRowBuilder<ButtonBuilder> {
-  const row = new ActionRowBuilder<ButtonBuilder>();
-
-  const pauseBtn = new ButtonBuilder()
-    .setCustomId(stateManager.create('music', 'toggle_pause'))
-    .setEmoji(paused ? '▶️' : '⏸️')
-    .setLabel(paused ? 'Resume' : 'Pause')
-    .setStyle(paused ? ButtonStyle.Success : ButtonStyle.Primary);
-
-  const skipBtn = new ButtonBuilder()
-    .setCustomId(stateManager.create('music', 'skip'))
-    .setEmoji('⏭️')
-    .setLabel('Skip')
-    .setStyle(ButtonStyle.Secondary);
-
-  const stopBtn = new ButtonBuilder()
-    .setCustomId(stateManager.create('music', 'stop'))
-    .setEmoji('⏹️')
-    .setLabel('Stop')
-    .setStyle(ButtonStyle.Danger);
-
   const loopEmojis = ['Off', 'Track', 'Queue', 'Autoplay 📻'];
-  const loopBtn = new ButtonBuilder()
-    .setCustomId(stateManager.create('music', 'loop'))
-    .setEmoji('🔁')
-    .setLabel(`Loop: ${loopEmojis[repeatMode] || 'Off'}`)
-    .setStyle(repeatMode > 0 ? ButtonStyle.Success : ButtonStyle.Secondary);
-
-  const queueBtn = new ButtonBuilder()
-    .setCustomId(stateManager.create('music', 'queue'))
-    .setEmoji('📜')
-    .setLabel('Queue')
-    .setStyle(ButtonStyle.Secondary);
-
-  row.addComponents(pauseBtn, skipBtn, stopBtn, loopBtn, queueBtn);
-  return row;
+  
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(MUSIC_IDS.toggle_pause)
+      .setEmoji(paused ? '▶️' : '⏸️')
+      .setLabel(paused ? 'Resume' : 'Pause')
+      .setStyle(paused ? ButtonStyle.Success : ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId(MUSIC_IDS.skip)
+      .setEmoji('⏭️')
+      .setLabel('Skip')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(MUSIC_IDS.stop)
+      .setEmoji('⏹️')
+      .setLabel('Stop')
+      .setStyle(ButtonStyle.Danger),
+    new ButtonBuilder()
+      .setCustomId(MUSIC_IDS.loop)
+      .setEmoji('🔁')
+      .setLabel(`Loop: ${loopEmojis[repeatMode] || 'Off'}`)
+      .setStyle(repeatMode > 0 ? ButtonStyle.Success : ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(MUSIC_IDS.queue)
+      .setEmoji('📜')
+      .setLabel('Queue')
+      .setStyle(ButtonStyle.Secondary),
+  );
 }
 
 // Player Events Listeners
@@ -181,9 +185,9 @@ player.events.on('playerError', (queue, error) => {
   logger.error(`Player connection error in ${queue.guild.id}: ${error.message}`);
 });
 
-// ── Performance & Quality: Cache search results for 30s ──
+// ── Performance & Quality: Cache search results for 60s ──
 const searchCache = new Map<string, { tracks: any[]; expiresAt: number }>();
-const SEARCH_CACHE_TTL_MS = 30_000;
+const SEARCH_CACHE_TTL_MS = 60_000; // increased from 30s to 60s
 
 function getCachedSearch(key: string): any[] | null {
   const entry = searchCache.get(key);
@@ -196,34 +200,37 @@ function getCachedSearch(key: string): any[] | null {
 }
 
 function setCachedSearch(key: string, tracks: any[]): void {
-  if (searchCache.size > 150) {
+  if (searchCache.size > 200) {
     const firstKey = searchCache.keys().next().value;
     if (firstKey) searchCache.delete(firstKey);
   }
   searchCache.set(key, { tracks, expiresAt: Date.now() + SEARCH_CACHE_TTL_MS });
 }
 
-/** Calculate Levenshtein edit distance for typo-tolerant fuzzy matching */
-function levenshteinDistance(a: string, b: string): number {
-  if (a.length === 0) return b.length;
-  if (b.length === 0) return a.length;
-  const matrix: number[][] = [];
-  for (let i = 0; i <= b.length; i++) matrix[i] = [i];
-  for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
-  for (let i = 1; i <= b.length; i++) {
-    for (let j = 1; j <= a.length; j++) {
-      if (b.charAt(i - 1) === a.charAt(j - 1)) {
-        matrix[i][j] = matrix[i - 1][j - 1];
-      } else {
-        matrix[i][j] = Math.min(
-          matrix[i - 1][j - 1] + 1,
-          matrix[i][j - 1] + 1,
-          matrix[i - 1][j] + 1
-        );
-      }
+/** Optimized Levenshtein with early exit for max distance threshold */
+function levenshteinDistance(a: string, b: string, maxDist: number = 3): number {
+  const la = a.length, lb = b.length;
+  if (Math.abs(la - lb) > maxDist) return maxDist + 1; // early exit
+  if (la === 0) return lb;
+  if (lb === 0) return la;
+
+  // Use single-row optimization instead of full matrix (O(n) space vs O(n²))
+  let prev = new Uint8Array(lb + 1);
+  let curr = new Uint8Array(lb + 1);
+  for (let j = 0; j <= lb; j++) prev[j] = j;
+
+  for (let i = 1; i <= la; i++) {
+    curr[0] = i;
+    let rowMin = i; // track min in row for early exit
+    for (let j = 1; j <= lb; j++) {
+      const cost = a.charCodeAt(i - 1) === b.charCodeAt(j - 1) ? 0 : 1;
+      curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost);
+      if (curr[j] < rowMin) rowMin = curr[j];
     }
+    if (rowMin > maxDist) return maxDist + 1; // early exit: no cell can be under threshold
+    [prev, curr] = [curr, prev];
   }
-  return matrix[b.length][a.length];
+  return prev[lb];
 }
 
 /** Check if two words fuzzy match despite typos or spelling mistakes */
@@ -231,8 +238,8 @@ function isFuzzyWordMatch(queryWord: string, targetWord: string): boolean {
   if (queryWord === targetWord) return true;
   if (targetWord.includes(queryWord) || queryWord.includes(targetWord)) return true;
   if (queryWord.length >= 4 && targetWord.length >= 4) {
-    const dist = levenshteinDistance(queryWord, targetWord);
     const maxAllowed = queryWord.length > 6 ? 2 : 1;
+    const dist = levenshteinDistance(queryWord, targetWord, maxAllowed);
     return dist <= maxAllowed;
   }
   return false;
@@ -284,7 +291,7 @@ export const musicService = {
   },
 
   /**
-   * Ultra-fast multi-engine partial search for text or URLs with typo-tolerance & lyric matching.
+   * Ultra-fast multi-engine search with 2-second race timeout, typo tolerance & lyric matching.
    */
   async searchTracks(query: string, user: any): Promise<any[]> {
     const trimmed = query.trim();
@@ -307,23 +314,19 @@ export const musicService = {
       return [];
     }
 
-    // Multi-engine parallel search (YouTube, Spotify, Apple Music, Auto)
-    const engineResults: any[][] = [[], [], [], []];
+    // Multi-engine parallel search — race with 2s timeout
+    const engineResults: any[][] = [[], [], []];
 
-    const createResolver = (priorityIndex: number) => (res: any) => {
-      if (res && res.hasTracks()) {
-        engineResults[priorityIndex] = res.tracks;
-      }
-    };
-
-    const p1 = player.search(trimmed, { requestedBy: user, searchEngine: QueryType.YOUTUBE_SEARCH }).then(createResolver(0)).catch(() => {});
-    const p2 = player.search(trimmed, { requestedBy: user, searchEngine: QueryType.SPOTIFY_SEARCH }).then(createResolver(1)).catch(() => {});
-    const p3 = player.search(trimmed, { requestedBy: user, searchEngine: QueryType.APPLE_MUSIC_SEARCH }).then(createResolver(2)).catch(() => {});
-    const p4 = player.search(trimmed, { requestedBy: user, searchEngine: QueryType.AUTO }).then(createResolver(3)).catch(() => {});
+    const p1 = player.search(trimmed, { requestedBy: user, searchEngine: QueryType.YOUTUBE_SEARCH })
+      .then(res => { if (res?.hasTracks()) engineResults[0] = res.tracks; }).catch(() => {});
+    const p2 = player.search(trimmed, { requestedBy: user, searchEngine: QueryType.SPOTIFY_SEARCH })
+      .then(res => { if (res?.hasTracks()) engineResults[1] = res.tracks; }).catch(() => {});
+    const p3 = player.search(trimmed, { requestedBy: user, searchEngine: QueryType.AUTO })
+      .then(res => { if (res?.hasTracks()) engineResults[2] = res.tracks; }).catch(() => {});
     
     await Promise.race([
-      Promise.all([p1, p2, p3, p4]),
-      new Promise(resolve => setTimeout(resolve, 2500))
+      Promise.all([p1, p2, p3]),
+      new Promise(resolve => setTimeout(resolve, 2000))
     ]);
 
     const allTracks: any[] = [];
@@ -360,34 +363,31 @@ export const musicService = {
     }
 
     // Advanced Typo-Tolerant & Relevance Scoring
-    const queryWords = trimmed.toLowerCase().split(/\s+/).filter(w => w.length >= 2);
-    const scoreTrack = (track: any) => {
-      const target = `${track.title} ${track.author || ''}`.toLowerCase();
-      const targetWords = target.split(/\s+/);
-      let score = 0;
+    if (allTracks.length > 0) {
+      const queryWords = trimmed.toLowerCase().split(/\s+/).filter(w => w.length >= 2);
+      const scoreTrack = (track: any) => {
+        const target = `${track.title} ${track.author || ''}`.toLowerCase();
+        const targetWords = target.split(/\s+/);
+        let score = 0;
 
-      // Exact phrase match
-      if (target.includes(trimmed.toLowerCase())) score += 60;
+        // Exact phrase match
+        if (target.includes(trimmed.toLowerCase())) score += 60;
 
-      // Word-level fuzzy & typo matching
-      for (const qWord of queryWords) {
-        let wordMatched = false;
-        for (const tWord of targetWords) {
-          if (isFuzzyWordMatch(qWord, tWord)) {
-            score += 15;
-            wordMatched = true;
-            break;
+        // Word-level fuzzy & typo matching
+        for (const qWord of queryWords) {
+          for (const tWord of targetWords) {
+            if (isFuzzyWordMatch(qWord, tWord)) {
+              score += 15;
+              break;
+            }
           }
         }
-        if (!wordMatched && target.includes(qWord)) score += 8;
-      }
 
-      // Official / High quality track bonus
-      if (target.includes('official') || target.includes('lyric') || target.includes('audio')) score += 5;
-      return score;
-    };
+        // Official / High quality track bonus
+        if (target.includes('official') || target.includes('lyric') || target.includes('audio')) score += 5;
+        return score;
+      };
 
-    if (allTracks.length > 0) {
       allTracks.sort((a, b) => scoreTrack(b) - scoreTrack(a));
       
       const topTracks = allTracks.slice(0, 15);

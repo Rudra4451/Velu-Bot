@@ -56,7 +56,7 @@ export const permissionManager = {
     }
 
     // 1. Bot Owner Bypass
-    const ownerId = await getBotOwnerId(client);
+    const ownerId = getBotOwnerId(client);
     if (ownerId && user.id === ownerId) {
       return true;
     }

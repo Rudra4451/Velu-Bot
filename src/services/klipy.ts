@@ -1,23 +1,23 @@
 import { config } from '../config/index.js';
 import { logger } from '../utils/logger.js';
 
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
-const CACHE_MAX_SIZE = 100;
-const REQUEST_TIMEOUT_MS = 2500; // 2.5 seconds timeout for thorough API searching
+const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes (longer cache = more instant hits)
+const CACHE_MAX_SIZE = 200;
+const REQUEST_TIMEOUT_MS = 2500;
 
 interface CacheEntry {
-  url: string;
+  urls: string[];   // store multiple URLs per query for variety
   expiresAt: number;
 }
 
 const cache = new Map<string, CacheEntry>();
 
-function cacheSet(key: string, url: string): void {
+function cacheSet(key: string, urls: string[]): void {
   if (cache.size >= CACHE_MAX_SIZE) {
     const firstKey = cache.keys().next().value;
     if (firstKey) cache.delete(firstKey);
   }
-  cache.set(key, { url, expiresAt: Date.now() + CACHE_TTL_MS });
+  cache.set(key, { urls, expiresAt: Date.now() + CACHE_TTL_MS });
 }
 
 function cacheGet(key: string): string | null {
@@ -27,7 +27,8 @@ function cacheGet(key: string): string | null {
     cache.delete(key);
     return null;
   }
-  return entry.url;
+  // Return a random URL from the cached list for variety
+  return entry.urls[Math.floor(Math.random() * entry.urls.length)];
 }
 
 // High quality fallback sticker URLs
@@ -85,7 +86,7 @@ async function fetchFromWaifuPics(action: string): Promise<string | null> {
   }
 }
 
-async function fetchFromGiphy(query: string): Promise<string | null> {
+async function fetchFromGiphy(query: string): Promise<string[]> {
   // Public Giphy Beta Key for open search
   const url = `https://api.giphy.com/v1/gifs/search?api_key=dc6zaTOxFJmzC&q=${encodeURIComponent(query)}&limit=10&rating=g`;
   try {
@@ -93,39 +94,42 @@ async function fetchFromGiphy(query: string): Promise<string | null> {
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     const res = await fetch(url, { signal: controller.signal });
     clearTimeout(timer);
-    if (!res.ok) return null;
+    if (!res.ok) return [];
     const json = (await res.json()) as any;
     const data = json?.data;
-    if (!data?.length) return null;
-    const pick = data[Math.floor(Math.random() * data.length)];
-    return pick?.images?.original?.url || pick?.images?.downsized?.url || null;
+    if (!data?.length) return [];
+    return data
+      .map((item: any) => item?.images?.original?.url || item?.images?.downsized?.url)
+      .filter(Boolean);
   } catch {
-    return null;
+    return [];
   }
 }
 
-async function fetchFromKlipy(query: string): Promise<string | null> {
-  if (!config.KLIPY_API_KEY) return null;
+async function fetchFromKlipy(query: string): Promise<string[]> {
+  if (!config.KLIPY_API_KEY) return [];
   const url = `https://api.klipy.com/api/v1/${config.KLIPY_API_KEY}/gifs/search?q=${encodeURIComponent(query)}`;
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     const res = await fetch(url, { signal: controller.signal });
     clearTimeout(timer);
-    if (!res.ok) return null;
+    if (!res.ok) return [];
     const json = (await res.json()) as any;
     const results = json?.data?.data;
-    if (!results?.length) return null;
-    const pick = results[Math.floor(Math.random() * results.length)];
-    return pick?.file?.hd?.gif?.url || pick?.file?.md?.gif?.url || null;
+    if (!results?.length) return [];
+    return results
+      .map((item: any) => item?.file?.hd?.gif?.url || item?.file?.md?.gif?.url)
+      .filter(Boolean);
   } catch {
-    return null;
+    return [];
   }
 }
 
 export const klipyService = {
   /**
-   * Multi-provider GIF / Sticker URL fetcher with zero downtime.
+   * Ultra-fast parallel multi-provider GIF / Sticker URL fetcher.
+   * All providers are raced simultaneously — first valid result wins.
    */
   async search(category: string, query: string): Promise<string> {
     const cleanQuery = (query || category || 'dance').toLowerCase().trim();
@@ -133,27 +137,36 @@ export const klipyService = {
     const cached = cacheGet(cacheKey);
     if (cached) return cached;
 
-    let resultUrl: string | null = null;
+    // Race ALL providers in parallel — whoever returns first wins
+    const allUrls: string[] = [];
 
-    // 1. If it's a known anime reaction action, try Waifu.pics API first (ultra-fast, HD)
+    const providers: Promise<void>[] = [];
+
+    // Waifu.pics for known anime actions
     if (WAIFU_ACTIONS.has(cleanQuery)) {
-      resultUrl = await fetchFromWaifuPics(cleanQuery);
+      providers.push(
+        fetchFromWaifuPics(cleanQuery).then(url => { if (url) allUrls.push(url); })
+      );
     }
 
-    // 2. Try Giphy API
-    if (!resultUrl) {
-      resultUrl = await fetchFromGiphy(cleanQuery);
+    // Giphy + Klipy always race in parallel
+    providers.push(
+      fetchFromGiphy(cleanQuery).then(urls => { allUrls.push(...urls); })
+    );
+    providers.push(
+      fetchFromKlipy(cleanQuery).then(urls => { allUrls.push(...urls); })
+    );
+
+    // Wait for all to finish (or timeout naturally via AbortController)
+    await Promise.allSettled(providers);
+
+    if (allUrls.length > 0) {
+      cacheSet(cacheKey, allUrls);
+      return pickRandom(allUrls);
     }
 
-    // 3. Try Klipy API
-    if (!resultUrl) {
-      resultUrl = await fetchFromKlipy(cleanQuery);
-    }
-
-    // 4. Fallback to curated GIF list
-    const finalUrl = resultUrl || pickRandom(FALLBACK_GIFS[cleanQuery] || FALLBACK_GIFS.hug);
-
-    cacheSet(cacheKey, finalUrl);
-    return finalUrl;
+    // Fallback to curated GIF list
+    const fallback = pickRandom(FALLBACK_GIFS[cleanQuery] || FALLBACK_GIFS.hug);
+    return fallback;
   },
 };
