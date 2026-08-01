@@ -8,9 +8,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Health check endpoint for Render / cloud monitoring
-app.get('/healthz', (_req, res) => {
-  res.status(200).json({ status: 'ok', uptime: process.uptime() });
+// Health check endpoints for Render / cloud monitoring
+app.get(['/', '/healthz', '/ping'], (_req, res) => {
+  res.status(200).json({ status: 'ok', uptime: process.uptime(), bot: 'Velu', timestamp: new Date().toISOString() });
 });
 
 export function startApiServer(client: VeluClient, port: number = 3001) {
@@ -86,25 +86,31 @@ export function startApiServer(client: VeluClient, port: number = 3001) {
     logger.info(`🌐 Velu API Server running on http://localhost:${port}`);
 
     // ── Self-Ping Keep-Alive (prevents Render free-tier 15-min sleep) ──
-    // Uses RENDER_EXTERNAL_URL if set, otherwise hardcoded production URL
-    const keepAliveUrl = process.env.RENDER_EXTERNAL_URL || 'https://velu-bot.onrender.com';
+    const renderUrl = process.env.RENDER_EXTERNAL_URL;
+    const fallbackUrl = 'https://velu-bot.onrender.com';
+    const keepAliveUrl = renderUrl || fallbackUrl;
     
-    // Only activate in production / when PORT is set by Render
-    if (process.env.PORT || process.env.RENDER_EXTERNAL_URL) {
-      // Ping every 4 minutes (well under Render's 15-min timeout)
-      const PING_INTERVAL_MS = 4 * 60 * 1000;
+    // Activate keep-alive in production / when running on cloud hosts
+    if (process.env.PORT || process.env.RENDER_EXTERNAL_URL || process.env.NODE_ENV === 'production') {
+      // Ping every 3 minutes (well below Render's 15-minute sleep threshold)
+      const PING_INTERVAL_MS = 3 * 60 * 1000;
       
       setInterval(() => {
-        fetch(`${keepAliveUrl}/healthz`)
+        const targetUrl = `${keepAliveUrl}/healthz`;
+        fetch(targetUrl)
           .then(res => {
-            if (!res.ok) logger.warn(`Keep-alive ping returned status ${res.status}`);
+            if (res.ok) {
+              logger.debug(`🔄 Keep-alive ping successful to ${targetUrl}`);
+            } else {
+              logger.warn(`Keep-alive ping returned status ${res.status}`);
+            }
           })
           .catch(err => {
-            logger.warn(`Keep-alive ping failed: ${err.message || err}`);
+            logger.warn(`Keep-alive ping error to ${targetUrl}: ${err.message || err}`);
           });
       }, PING_INTERVAL_MS);
       
-      logger.info(`🔄 Keep-Alive active: pinging ${keepAliveUrl}/healthz every 4 minutes`);
+      logger.info(`🔄 24/7 Uptime Keep-Alive active: pinging ${keepAliveUrl}/healthz every 3 minutes`);
     }
   });
 }
