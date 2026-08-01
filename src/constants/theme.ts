@@ -1,11 +1,11 @@
 export const THEME = {
   colors: {
-    primary: 0x9D4EDD,   // Ultra-Vibrant Electric Violet
-    success: 0x00F5D4,   // Neon Cyan / Mint
-    warning: 0xFFB703,   // Bright Amber / Gold
-    error: 0xFF0054,     // Crimson Red
-    info: 0x00B4D8,      // Deep Sky Cyan
-    background: 0x1A1A2E // Midnight Navy
+    primary: 0x8A2BE2,   // Ultra-Vibrant Blue Violet / Electric Purple
+    success: 0x00F5D4,   // Neon Mint / Cyan
+    warning: 0xFFB703,   // Bright Gold / Amber
+    error: 0xFF0054,     // Crimson Magenta
+    info: 0x00B4D8,      // Deep Ocean Cyan
+    background: 0x0F0F1A // Midnight Dark Mode
   },
   icons: {
     primary: '✨',
@@ -13,10 +13,13 @@ export const THEME = {
     warning: '⚠️',
     error: '❌',
     info: '💡',
-    dot: '💎'
+    dot: '💎',
+    music: '🎶',
+    radio: '📻',
+    queue: '📜'
   },
   footer: {
-    text: 'Velu • Studio Audio 48kHz & High Performance ⚡',
+    text: 'Velu Music • 48kHz High-Fidelity Studio Audio ⚡',
     iconURL: 'https://i.imgur.com/uI6O0Nf.png'
   }
 };

@@ -183,10 +183,9 @@ export class GuildMusicPlayer {
     try {
       await this.connect();
 
-      // Resolve high-performance audio stream via play-dl SoundCloud bridge
+      // High Quality stream extraction (quality: 2 for 48kHz Opus stream)
       let streamUrl = currentSong.url;
 
-      // If YouTube or non-SoundCloud URL, bridge through SoundCloud search
       if (!currentSong.url.includes('soundcloud.com')) {
         try {
           const searchQuery = `${cleanTrackTitle(currentSong.title)} ${currentSong.author || ''}`.trim();
@@ -197,7 +196,8 @@ export class GuildMusicPlayer {
         } catch {}
       }
 
-      const scStream = await play.stream(streamUrl);
+      // Stream with highest audio quality configuration (quality: 2)
+      const scStream = await play.stream(streamUrl, { quality: 2 });
       const resource = createAudioResource(scStream.stream, {
         inputType: scStream.type as StreamType,
         inlineVolume: true,
@@ -213,7 +213,6 @@ export class GuildMusicPlayer {
       this.sendNowPlayingEmbed(currentSong);
     } catch (err: any) {
       logger.error(`Error playing track "${currentSong.title}" in guild ${this.guildId}:`, err);
-      // Skip to next track on error
       this.handleTrackFinish();
     }
   }
@@ -229,13 +228,12 @@ export class GuildMusicPlayer {
     const embed = UIFactory.premium(
       '🎶 Now Playing',
       `**[${song.title}](${song.url})**\n\n` +
-      `👤 **Artist:** \`${song.author || 'Unknown'}\`\n` +
-      `⏱️ **Duration:** \`${song.duration || 'Live'}\`\n` +
-      `🎧 **Requested by:** \`${song.requester}\`\n\n` +
-      `🔊 **Volume:** \`${this.volume}%\`   |   🔁 **Mode:** \`${loopLabels[this.repeatMode] || 'Off'}\``,
+      `👤 **Artist:** \`${song.author || 'Unknown'}\`   |   ⏱️ **Duration:** \`${song.duration || 'Live'}\`\n` +
+      `🎧 **Requested by:** \`${song.requester}\`   |   🔊 **Volume:** \`${this.volume}%\` \n\n` +
+      `🔁 **Loop Mode:** \`${loopLabels[this.repeatMode] || 'Off'}\`   |   💎 **Bitrate:** \`48kHz Studio Opus ✨\``,
       {
         thumbnail: song.thumbnail,
-        footerText: 'Velu Music • Native Audio Engine 48kHz ✨'
+        footerText: 'Velu • Ultra Studio Audio 48kHz & High Performance ⚡'
       }
     );
 
@@ -247,25 +245,21 @@ export class GuildMusicPlayer {
 
   private handleTrackFinish(): void {
     if (this.repeatMode === RepeatMode.TRACK) {
-      // Replay same track
       this.play();
       return;
     }
 
     if (this.repeatMode === RepeatMode.QUEUE) {
-      // Loop queue index
       this.currentIndex = (this.currentIndex + 1) % this.queue.length;
       this.play();
       return;
     }
 
-    // Default: Move to next track
     this.currentIndex++;
 
     if (this.currentIndex < this.queue.length) {
       this.play();
     } else {
-      // Queue Ended
       if (this.repeatMode === RepeatMode.AUTOPLAY) {
         this.handleAutoplay();
       } else {
@@ -310,7 +304,7 @@ export class GuildMusicPlayer {
 
   public skip(): boolean {
     if (this.audioPlayer.state.status === AudioPlayerStatus.Idle) return false;
-    this.audioPlayer.stop(); // Triggers handleTrackFinish
+    this.audioPlayer.stop();
     return true;
   }
 
@@ -331,10 +325,10 @@ export class GuildMusicPlayer {
   public togglePause(): boolean {
     if (this.audioPlayer.state.status === AudioPlayerStatus.Paused) {
       this.audioPlayer.unpause();
-      return false; // isPaused = false
+      return false;
     } else {
       this.audioPlayer.pause();
-      return true; // isPaused = true
+      return true;
     }
   }
 
@@ -368,7 +362,7 @@ export class GuildMusicPlayer {
     this.idleTimeout = setTimeout(() => {
       logger.info(`Auto-leaving voice channel in guild ${this.guildId} due to inactivity.`);
       this.destroy();
-    }, 180_000); // 3 minutes
+    }, 180_000);
   }
 
   private clearIdleTimeout(): void {
@@ -408,6 +402,10 @@ export const musicService = {
     };
   },
 
+  /**
+   * Dual-Engine High-Accuracy Search across SoundCloud & YouTube.
+   * Returns valid Song objects with studio quality stream paths.
+   */
   async searchTracks(query: string, user: any): Promise<Song[]> {
     const trimmed = query.trim();
     if (!trimmed) return [];
@@ -420,6 +418,7 @@ export const musicService = {
       let searchQuery = trimmed;
       const validation = await play.validate(trimmed).catch(() => 'search');
 
+      // Smart URL resolution
       if (validation === 'yt_video' || validation === 'yt_playlist') {
         try {
           const ytInfo = await play.video_basic_info(trimmed);
@@ -451,31 +450,63 @@ export const musicService = {
         } catch {}
       }
 
-      const results = await Promise.race([
-        play.search(searchQuery, { source: { soundcloud: 'tracks' }, limit: 10 }),
-        new Promise<any[]>((_, reject) => setTimeout(() => reject(new Error('search timeout')), 2500))
-      ]);
+      // 1. Primary: SoundCloud Search
+      try {
+        const scResults = await Promise.race([
+          play.search(searchQuery, { source: { soundcloud: 'tracks' }, limit: 10 }),
+          new Promise<any[]>((_, reject) => setTimeout(() => reject(new Error('SC search timeout')), 2000))
+        ]);
 
-      const songs: Song[] = results.map((item: any) => {
-        const durationMs = item.durationInMs;
-        const durationStr = durationMs
-          ? `${Math.floor(durationMs / 60000)}:${Math.floor((durationMs % 60000) / 1000).toString().padStart(2, '0')}`
-          : 'Live';
+        if (scResults && scResults.length > 0) {
+          const songs: Song[] = scResults.map((item: any) => {
+            const durationMs = item.durationInMs;
+            const durationStr = durationMs
+              ? `${Math.floor(durationMs / 60000)}:${Math.floor((durationMs % 60000) / 1000).toString().padStart(2, '0')}`
+              : 'Live';
 
-        return {
-          title: item.name || item.title || 'Unknown Song',
-          url: item.permalink_url || item.url,
-          duration: durationStr,
-          thumbnail: item.thumbnail || item.user?.avatar_url || '',
-          requester: user.tag || user.username || 'User',
-          author: item.user?.name || item.user?.username || 'Artist',
-          source: 'soundcloud'
-        };
-      });
+            return {
+              title: item.name || item.title || 'Unknown Song',
+              url: item.permalink_url || item.url,
+              duration: durationStr,
+              thumbnail: item.thumbnail || item.user?.avatar_url || '',
+              requester: user.tag || user.username || 'User',
+              author: item.user?.name || item.user?.username || 'Artist',
+              source: 'soundcloud'
+            };
+          });
 
-      if (songs.length > 0) {
-        searchCache.set(cacheKey, { songs, expiresAt: Date.now() + 60_000 });
-        return songs;
+          searchCache.set(cacheKey, { songs, expiresAt: Date.now() + 60_000 });
+          return songs;
+        }
+      } catch (scErr: any) {
+        logger.warn(`SoundCloud primary search warning for "${searchQuery}": ${scErr.message || scErr}`);
+      }
+
+      // 2. Secondary Fallback: YouTube Search
+      try {
+        const ytResults = await Promise.race([
+          play.search(searchQuery, { source: { youtube: 'video' }, limit: 10 }),
+          new Promise<any[]>((_, reject) => setTimeout(() => reject(new Error('YT search timeout')), 2000))
+        ]);
+
+        if (ytResults && ytResults.length > 0) {
+          const songs: Song[] = ytResults.map((item: any) => {
+            return {
+              title: item.title || 'Unknown Song',
+              url: item.url,
+              duration: item.durationRaw || '0:00',
+              thumbnail: item.thumbnails?.[0]?.url || '',
+              requester: user.tag || user.username || 'User',
+              author: item.channel?.name || 'YouTube',
+              source: 'youtube'
+            };
+          });
+
+          searchCache.set(cacheKey, { songs, expiresAt: Date.now() + 60_000 });
+          return songs;
+        }
+      } catch (ytErr: any) {
+        logger.warn(`YouTube secondary search warning for "${searchQuery}": ${ytErr.message || ytErr}`);
       }
     } catch (err: any) {
       logger.warn(`Search warning for "${trimmed}": ${err.message || err}`);
@@ -508,7 +539,6 @@ export const musicService = {
 
     player.queue.push(song);
 
-    // If audio player is currently idle, start playing immediately in background
     if (player.audioPlayer.state.status === AudioPlayerStatus.Idle && player.queue.length === 1) {
       player.play().catch(err => logger.error('Player start error:', err));
     }
