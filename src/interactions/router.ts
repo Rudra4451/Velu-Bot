@@ -37,6 +37,9 @@ export async function handleInteraction(interaction: Interaction, client: VeluCl
       return;
     }
 
+    // Immediately defer interaction to guarantee sub-100ms ACK response to Discord (prevents 3s timeout)
+    await middleware.safeDefer(interaction);
+
     // Permission Validation Middleware
     const authorized = await middleware.checkPermissions(interaction, command);
     if (!authorized) return;
