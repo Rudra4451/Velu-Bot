@@ -44,7 +44,7 @@ export async function autocomplete(interaction: AutocompleteInteraction): Promis
 
   try {
     const searchPromise = musicService.searchTracks(query, interaction.user);
-    const timeoutPromise = new Promise<any[]>((resolve) => setTimeout(() => resolve([]), 180));
+    const timeoutPromise = new Promise<any[]>((resolve) => setTimeout(() => resolve([]), 2500));
 
     const tracks = await Promise.race([searchPromise, timeoutPromise]);
     const choices = tracks.slice(0, 10).map(t => {
