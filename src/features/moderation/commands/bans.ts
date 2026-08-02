@@ -17,8 +17,6 @@ export const data = new SlashCommandBuilder()
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!interaction.guild) return;
 
-  await interaction.deferReply();
-
   try {
     const bans = await interaction.guild.bans.fetch();
     if (bans.size === 0) {

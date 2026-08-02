@@ -48,8 +48,6 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const targetId = interaction.options.getString('target_id', true);
   const reason = interaction.options.getString('reason') || 'No reason provided';
 
-  await interaction.deferReply();
-
   try {
     const banInfo = await interaction.guild.bans.fetch(targetId).catch(() => null);
     if (!banInfo) {
