@@ -248,6 +248,7 @@ export class GuildMusicPlayer {
         `${createProgressBar(elapsed, totalMs, 20)}`,
         {
           thumbnail: song.thumbnail,
+          image: THEME.gifs.equalizer,
           footerText: `Velu Premium Audio ✨`
         }
       );
@@ -276,6 +277,7 @@ export class GuildMusicPlayer {
       `${createProgressBar(0, totalMs, 20)}`,
       {
         thumbnail: song.thumbnail,
+        image: THEME.gifs.equalizer,
         footerText: `Velu Premium Audio ✨`
       }
     );

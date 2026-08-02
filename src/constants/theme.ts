@@ -1,27 +1,33 @@
 export const THEME = {
   colors: {
-    primary: 0x5865F2,   // Blurple
-    secondary: 0x2B2D31, // Discord Dark Gray
-    success: 0x57F287,   // Green
-    warning: 0xFEE75C,   // Yellow
-    error: 0xED4245,     // Red
-    info: 0x5865F2,      // Blurple
-    background: 0x1E1F22 // Darker Gray
+    primary: 0x00FFFF,   // Neon Cyan (Glowing effect)
+    secondary: 0xFF00FF, // Neon Fuchsia
+    success: 0x00FF9D,   // Neon Mint Green
+    warning: 0xFFEA00,   // Neon Yellow
+    error: 0xFF003C,     // Neon Crimson
+    info: 0x00D0FF,      // Bright Blue
+    background: 0x0A0A0C // Pitch Dark/OLED Black
   },
   icons: {
-    primary: '✦',
-    success: '✓',
-    warning: '⚠',
-    error: '✕',
-    info: 'ℹ',
+    primary: '✨',
+    success: '🟢',
+    warning: '🟡',
+    error: '🔴',
+    info: '💠',
     dot: '•',
-    music: '♪',
+    music: '🎧',
     radio: '📻',
-    queue: '≡',
-    loading: '⏳'
+    queue: '📑',
+    loading: '🔄'
+  },
+  gifs: {
+    // High-quality animated GIFs for premium UI feel
+    equalizer: 'https://i.pinimg.com/originals/b5/45/6b/b5456b9c9f2292f7586524d78c3c78d5.gif', // Glowing neon equalizer
+    cdSpinning: 'https://i.pinimg.com/originals/a0/02/76/a00276685ea7f4d2de88a9161a0eb649.gif',
+    stars: 'https://i.pinimg.com/originals/44/6e/3b/446e3b79395a2f5877f0a8cda97e0c80.gif'
   },
   footer: {
-    text: 'Powered by Velu • High-Fidelity Bot',
-    iconURL: 'https://i.imgur.com/uI6O0Nf.png' // You can change this to your bot's avatar
+    text: 'Velu Premium • High-Fidelity Audio',
+    iconURL: 'https://i.pinimg.com/originals/3b/8a/0a/3b8a0a19e596ebef80f2d480838634fc.gif' // Animated glowing logo
   }
 };
