@@ -11,6 +11,7 @@ import { ticketStorage } from './src/database/repositories/TicketRepository.js';
 import { suggestionStorage } from './src/database/repositories/SuggestionRepository.js';
 import { starboardStorage } from './src/database/repositories/StarboardRepository.js';
 import { reactionRoleStorage } from './src/database/repositories/ReactionRoleRepository.js';
+import { afkStorage } from './src/database/repositories/AfkRepository.js';
 import type { VeluClient } from './src/types/index.js';
 
 // ── Performance: Tune Node.js event loop ──────────────────────
@@ -115,7 +116,8 @@ async function bootstrap() {
       ticketStorage.init(),
       suggestionStorage.init(),
       starboardStorage.init(),
-      reactionRoleStorage.init()
+      reactionRoleStorage.init(),
+      afkStorage.init()
     ]);
 
     // 1. Load components, events, and commands IN PARALLEL
