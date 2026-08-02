@@ -9,12 +9,13 @@ export async function loadComponents(client: VeluClient): Promise<void> {
   client.components = new Map();
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = dirname(__filename);
-  const componentsDir = join(__dirname, '..', 'interactions', 'components');
+  const componentsDir = join(__dirname, '..', 'features');
   const ext = __filename.endsWith('.ts') ? '.ts' : '.js';
 
   try {
     await mkdir(componentsDir, { recursive: true });
-    const componentFiles = await scanDirectory(componentsDir, { extension: ext });
+    let componentFiles = await scanDirectory(componentsDir, { extension: ext });
+    componentFiles = componentFiles.filter(f => f.includes('components'));
 
     for (const file of componentFiles) {
       const fileUrl = pathToFileURL(file).href;

@@ -16,12 +16,13 @@ export async function loadCommands(client: VeluClient): Promise<ReturnType<Comma
   
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = dirname(__filename);
-  const commandsDir = join(__dirname, '..', 'interactions', 'commands');
+  const commandsDir = join(__dirname, '..', 'features');
   const ext = __filename.endsWith('.ts') ? '.ts' : '.js';
 
   try {
     await mkdir(commandsDir, { recursive: true });
-    const commandFiles = await scanDirectory(commandsDir, { extension: ext });
+    let commandFiles = await scanDirectory(commandsDir, { extension: ext });
+    commandFiles = commandFiles.filter(f => f.includes('commands'));
     const commandData: ReturnType<Command['data']['toJSON']>[] = [];
 
     // Import all command files in parallel for faster loading
