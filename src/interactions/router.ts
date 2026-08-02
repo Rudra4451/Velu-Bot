@@ -1,7 +1,7 @@
 import type { Interaction, ChatInputCommandInteraction } from 'discord.js';
 import { logger } from '../utils/logger.js';
 import { UIFactory } from '../ui/factory.js';
-import { stateManager } from '../state/manager.js';
+import { stateManager } from '../core/stateManager.js';
 import { LIMITS } from '../constants/index.js';
 import { middleware } from '../utils/middleware.js';
 import type { VeluClient, Command } from '../types/index.js';
@@ -65,12 +65,7 @@ export async function handleInteraction(interaction: Interaction, client: VeluCl
       logger.debug(`Executing command /${interaction.commandName} for User: ${interaction.user.tag}`);
       await command.execute(interaction, client);
     } catch (error: any) {
-      logger.error(`Error executing slash command /${interaction.commandName}`, error);
-      const errorEmbed = UIFactory.error(
-        'Execution Error',
-        'An unexpected error occurred while executing this command.'
-      );
-      await middleware.safeReply(interaction, { embeds: [errorEmbed], ephemeral: true });
+      await middleware.handleError(interaction, error, `slash command /${interaction.commandName}`);
     }
     return;
   }
@@ -118,9 +113,7 @@ export async function handleInteraction(interaction: Interaction, client: VeluCl
     try {
       await handler.execute(interaction, { action, data: data as Record<string, unknown> | null, namespace }, client);
     } catch (error: any) {
-      logger.error(`Error running component handler for ${namespace}:${action}`, error);
-      const errEmbed = UIFactory.error('Error', 'Failed to process this component action.');
-      await middleware.safeReply(interaction, { embeds: [errEmbed], ephemeral: true });
+      await middleware.handleError(interaction, error, `component handler ${namespace}:${action}`);
     }
     return;
   }

@@ -1,6 +1,6 @@
 import { PermissionFlagsBits } from 'discord.js';
 import type { ChatInputCommandInteraction, GuildMember, PermissionResolvable } from 'discord.js';
-import { db } from '../state/db.js';
+import { guildStorage } from '../database/repositories/GuildRepository.js';
 import { UIFactory } from '../ui/factory.js';
 import { middleware } from './middleware.js';
 import type { AuthorizeOptions, HierarchyOptions } from '../types/index.js';
@@ -72,9 +72,11 @@ export const permissionManager = {
     }
 
     // 4. Configured Roles Check
+    const config = guildStorage.get(guild.id);
+    const customPerms = config.customPermissions || {};
     const allowedRoles = [
-      ...db.getPermissions(guild.id, commandName || ''),
-      ...db.getPermissions(guild.id, moduleName || '')
+      ...(customPerms[commandName || ''] || []),
+      ...(customPerms[moduleName || ''] || [])
     ];
 
     const hasConfiguredRole = guildMember.roles.cache.some(role => allowedRoles.includes(role.id));

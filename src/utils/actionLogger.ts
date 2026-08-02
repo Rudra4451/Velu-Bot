@@ -1,5 +1,5 @@
 import type { Guild, AuditLogEvent, User, TextBasedChannel } from 'discord.js';
-import { db } from '../state/db.js';
+import { guildStorage } from '../database/repositories/GuildRepository.js';
 import { UIFactory } from '../ui/factory.js';
 import { logger } from './logger.js';
 
@@ -46,7 +46,7 @@ export const actionLogger = {
    * General log dispatcher.
    */
   async log(guild: Guild, options: LogOptions): Promise<void> {
-    const config = db.getConfig(guild.id);
+    const config = guildStorage.get(guild.id);
     if (!config.logEnabled || !config.logChannel) return;
 
     try {

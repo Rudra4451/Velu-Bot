@@ -1,5 +1,5 @@
 import { AuditLogEvent, GuildChannel } from 'discord.js';
-import { db } from '../state/db.js';
+import { guildStorage } from '../database/repositories/GuildRepository.js';
 import { actionLogger } from '../utils/actionLogger.js';
 
 export const name = 'channelDelete';
@@ -9,7 +9,7 @@ export async function execute(channel: GuildChannel): Promise<void> {
   const guild = channel.guild;
   if (!guild) return;
 
-  const config = db.getConfig(guild.id);
+  const config = guildStorage.get(guild.id);
   if (!config.logEnabled) return;
 
   const executor = await actionLogger.fetchExecutor(guild, AuditLogEvent.ChannelDelete, channel.id);

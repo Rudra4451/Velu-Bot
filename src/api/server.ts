@@ -1,6 +1,6 @@
 import express from 'express';
 import cors from 'cors';
-import { db } from '../state/db.js';
+import { guildStorage } from '../database/repositories/GuildRepository.js';
 import { logger } from '../utils/logger.js';
 import type { VeluClient } from '../types/index.js';
 
@@ -85,7 +85,7 @@ export function startApiServer(client: VeluClient, port: number = 3001) {
        res.status(404).json({ error: 'Bot is not in this server' });
        return;
     }
-    const config = db.getConfig(guildId);
+    const config = guildStorage.get(guildId);
     res.json(config);
   });
 
@@ -100,40 +100,23 @@ export function startApiServer(client: VeluClient, port: number = 3001) {
     }
 
     try {
-      const config = db.getConfig(guildId);
+      const config = guildStorage.get(guildId);
       
       // Update fields
-      if (body.welcomeEnabled !== undefined) db.updateConfig(guildId, 'welcomeEnabled', body.welcomeEnabled);
-      if (body.welcomeMessage !== undefined) db.updateConfig(guildId, 'welcomeMessage', body.welcomeMessage);
-      if (body.goodbyeEnabled !== undefined) db.updateConfig(guildId, 'goodbyeEnabled', body.goodbyeEnabled);
-      if (body.goodbyeMessage !== undefined) db.updateConfig(guildId, 'goodbyeMessage', body.goodbyeMessage);
+      const updates: any = {};
+      if (body.welcomeEnabled !== undefined) updates.welcomeEnabled = body.welcomeEnabled;
+      if (body.welcomeMessage !== undefined) updates.welcomeMessage = body.welcomeMessage;
+      if (body.goodbyeEnabled !== undefined) updates.goodbyeEnabled = body.goodbyeEnabled;
+      if (body.goodbyeMessage !== undefined) updates.goodbyeMessage = body.goodbyeMessage;
       
-      res.json(db.getConfig(guildId));
+      guildStorage.update(guildId, updates);
+      
+      res.json(guildStorage.get(guildId));
     } catch (e: any) {
       res.status(400).json({ error: e.message });
     }
   });
 
-  // Get Economy Leaderboard for Server
-  app.get('/api/guilds/:id/leaderboard', (req, res) => {
-    const guildId = req.params.id;
-    const users = db.getAllEconomy(guildId);
-    
-    // Sort by level/xp
-    users.sort((a, b) => b.xp - a.xp);
-    
-    // Map with discord username (if cached)
-    const enriched = users.slice(0, 10).map(u => {
-      const userCache = client.users.cache.get(u.userId);
-      return {
-        ...u,
-        username: userCache?.username || 'Unknown User',
-        avatar: userCache?.displayAvatarURL() || null
-      };
-    });
-
-    res.json(enriched);
-  });
 
   app.listen(port, '0.0.0.0', () => {
     logger.info(`🌐 Velu API Server running on http://0.0.0.0:${port}`);

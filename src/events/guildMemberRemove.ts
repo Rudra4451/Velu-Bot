@@ -1,5 +1,5 @@
 import { GuildMember } from 'discord.js';
-import { db } from '../state/db.js';
+import { guildStorage } from '../database/repositories/GuildRepository.js';
 import { actionLogger } from '../utils/actionLogger.js';
 import { UIFactory } from '../ui/factory.js';
 import { logger } from '../utils/logger.js';
@@ -10,7 +10,7 @@ export const once = false;
 
 export async function execute(member: GuildMember, client: VeluClient): Promise<void> {
   const guild = member.guild;
-  const config = db.getConfig(guild.id);
+  const config = guildStorage.get(guild.id);
 
   // 1. Goodbye System Notification
   if (config.goodbyeEnabled && config.goodbyeChannel) {

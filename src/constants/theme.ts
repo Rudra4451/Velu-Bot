@@ -1,25 +1,27 @@
 export const THEME = {
   colors: {
-    primary: 0x8A2BE2,   // Ultra-Vibrant Blue Violet / Electric Purple
-    success: 0x00F5D4,   // Neon Mint / Cyan
-    warning: 0xFFB703,   // Bright Gold / Amber
-    error: 0xFF0054,     // Crimson Magenta
-    info: 0x00B4D8,      // Deep Ocean Cyan
-    background: 0x0F0F1A // Midnight Dark Mode
+    primary: 0x5865F2,   // Blurple
+    secondary: 0x2B2D31, // Discord Dark Gray
+    success: 0x57F287,   // Green
+    warning: 0xFEE75C,   // Yellow
+    error: 0xED4245,     // Red
+    info: 0x5865F2,      // Blurple
+    background: 0x1E1F22 // Darker Gray
   },
   icons: {
-    primary: '✨',
-    success: '🎉',
-    warning: '⚠️',
-    error: '❌',
-    info: '💡',
-    dot: '💎',
-    music: '🎶',
+    primary: '✦',
+    success: '✓',
+    warning: '⚠',
+    error: '✕',
+    info: 'ℹ',
+    dot: '•',
+    music: '♪',
     radio: '📻',
-    queue: '📜'
+    queue: '≡',
+    loading: '⏳'
   },
   footer: {
-    text: 'Velu Music • 48kHz High-Fidelity Studio Audio ⚡',
-    iconURL: 'https://i.imgur.com/uI6O0Nf.png'
+    text: 'Powered by Velu • High-Fidelity Bot',
+    iconURL: 'https://i.imgur.com/uI6O0Nf.png' // You can change this to your bot's avatar
   }
 };

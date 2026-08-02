@@ -1,5 +1,5 @@
 import { AuditLogEvent, GuildMember } from 'discord.js';
-import { db } from '../state/db.js';
+import { guildStorage } from '../database/repositories/GuildRepository.js';
 import { actionLogger } from '../utils/actionLogger.js';
 
 export const name = 'guildMemberUpdate';
@@ -7,7 +7,7 @@ export const once = false;
 
 export async function execute(oldMember: GuildMember, newMember: GuildMember): Promise<void> {
   const guild = newMember.guild;
-  const config = db.getConfig(guild.id);
+  const config = guildStorage.get(guild.id);
   if (!config.logEnabled) return;
 
   // 1. Timeout Check

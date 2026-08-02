@@ -1,5 +1,5 @@
 import { AuditLogEvent, GuildBan } from 'discord.js';
-import { db } from '../state/db.js';
+import { guildStorage } from '../database/repositories/GuildRepository.js';
 import { actionLogger } from '../utils/actionLogger.js';
 
 export const name = 'guildBanAdd';
@@ -7,7 +7,7 @@ export const once = false;
 
 export async function execute(ban: GuildBan): Promise<void> {
   const guild = ban.guild;
-  const config = db.getConfig(guild.id);
+  const config = guildStorage.get(guild.id);
 
   if (config.logEnabled) {
     const executor = await actionLogger.fetchExecutor(guild, AuditLogEvent.MemberBanAdd, ban.user.id);

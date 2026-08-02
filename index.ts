@@ -5,7 +5,12 @@ import { loadEvents } from './src/events/loader.js';
 import { loadCommands } from './src/loaders/commands.js';
 import { loadComponents } from './src/loaders/components.js';
 import { startApiServer } from './src/api/server.js';
-import { db } from './src/state/db.js';
+import { guildStorage } from './src/database/repositories/GuildRepository.js';
+import { warningStorage } from './src/database/repositories/WarningRepository.js';
+import { ticketStorage } from './src/database/repositories/TicketRepository.js';
+import { suggestionStorage } from './src/database/repositories/SuggestionRepository.js';
+import { starboardStorage } from './src/database/repositories/StarboardRepository.js';
+import { reactionRoleStorage } from './src/database/repositories/ReactionRoleRepository.js';
 import type { VeluClient } from './src/types/index.js';
 
 // ── Performance: Tune Node.js event loop ──────────────────────
@@ -49,8 +54,20 @@ const client = new Client({
 }) as VeluClient;
 
 // ── Crash Protection: Never let the bot process die ──────────────
-const shutdown = () => {
+const shutdown = async () => {
   logger.info('Shutdown signal received. Clearing resources and logging out...');
+  
+  // Flush all pending DB writes
+  logger.info('Flushing database writes...');
+  await Promise.all([
+    guildStorage.flush(),
+    warningStorage.flush(),
+    ticketStorage.flush(),
+    suggestionStorage.flush(),
+    starboardStorage.flush(),
+    reactionRoleStorage.flush()
+  ]).catch(e => logger.error('Error flushing DB:', e));
+
   client.destroy();
   logger.info('Goodbye!');
   process.exit(0);
@@ -91,8 +108,15 @@ async function bootstrap() {
   const startTime = performance.now();
 
   try {
-    // 0. Start Supabase cache load (non-blocking, race with loaders)
-    const dbPromise = db.loadFromSupabase();
+    // 0. Init JSON file storages (non-blocking)
+    const storageInitPromise = Promise.all([
+      guildStorage.init(),
+      warningStorage.init(),
+      ticketStorage.init(),
+      suggestionStorage.init(),
+      starboardStorage.init(),
+      reactionRoleStorage.init()
+    ]);
 
     // 1. Load components, events, and commands IN PARALLEL
     const [, , commandData] = await Promise.all([
@@ -101,8 +125,8 @@ async function bootstrap() {
       loadCommands(client),
     ]);
 
-    // Wait for DB load (may have already finished)
-    await dbPromise;
+    // Wait for Storage init to finish
+    await storageInitPromise;
 
     const loadTime = (performance.now() - startTime).toFixed(0);
     logger.info(`⚡ All modules loaded in ${loadTime}ms`);

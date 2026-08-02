@@ -1,5 +1,5 @@
 import { VoiceState } from 'discord.js';
-import { db } from '../state/db.js';
+import { guildStorage } from '../database/repositories/GuildRepository.js';
 import { actionLogger } from '../utils/actionLogger.js';
 
 export const name = 'voiceStateUpdate';
@@ -7,7 +7,7 @@ export const once = false;
 
 export async function execute(oldState: VoiceState, newState: VoiceState): Promise<void> {
   const guild = newState.guild;
-  const config = db.getConfig(guild.id);
+  const config = guildStorage.get(guild.id);
   if (!config.logEnabled) return;
 
   const member = newState.member;

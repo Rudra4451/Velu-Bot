@@ -1,5 +1,5 @@
 import { AuditLogEvent, Message } from 'discord.js';
-import { db } from '../state/db.js';
+import { guildStorage } from '../database/repositories/GuildRepository.js';
 import { actionLogger } from '../utils/actionLogger.js';
 
 export const name = 'messageDelete';
@@ -12,7 +12,7 @@ export async function execute(message: Message): Promise<void> {
   const guild = message.guild;
   if (!guild) return;
 
-  const config = db.getConfig(guild.id);
+  const config = guildStorage.get(guild.id);
   if (!config.logEnabled) return;
 
   const executor = await actionLogger.fetchExecutor(guild, AuditLogEvent.MessageDelete, message.id);

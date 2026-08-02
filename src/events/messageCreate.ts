@@ -1,5 +1,6 @@
 import { Message, PermissionFlagsBits } from 'discord.js';
-import { db } from '../state/db.js';
+import { guildStorage } from '../database/repositories/GuildRepository.js';
+import { afkStorage } from '../database/repositories/AfkRepository.js';
 import { UIFactory } from '../ui/factory.js';
 import { handlePrefixCommand } from '../handlers/prefix.js';
 import type { VeluClient } from '../types/index.js';
@@ -36,9 +37,9 @@ export async function execute(message: Message, client: VeluClient): Promise<voi
   const prefixPromise = handlePrefixCommand(message);
 
   // 1. Welcome Back: check if sender is AFK (in-memory lookup, O(1))
-  const senderAFK = db.getAFK(userId);
+  const senderAFK = afkStorage.get(userId);
   if (senderAFK) {
-    db.clearAFK(userId);
+    afkStorage.delete(userId);
     
     const durationMs = now - senderAFK.timestamp;
     const minutes = Math.floor(durationMs / (1000 * 60));
@@ -75,7 +76,7 @@ export async function execute(message: Message, client: VeluClient): Promise<voi
     for (const [mentionedId, user] of message.mentions.users) {
       if (mentionedId === userId) continue;
 
-      const afkData = db.getAFK(mentionedId);
+      const afkData = afkStorage.get(mentionedId);
       if (afkData) {
         const cooldownKey = `${userId}:${mentionedId}`;
         const lastNotified = afkCooldowns.get(cooldownKey) || 0;
@@ -98,7 +99,7 @@ export async function execute(message: Message, client: VeluClient): Promise<voi
   }
 
   // 3. Automod & Security Rules
-  const config = db.getConfig(guildId);
+  const config = guildStorage.get(guildId);
   if (config.automodEnabled) {
     const member = message.member;
     const isMod = member?.permissions.has(PermissionFlagsBits.ManageMessages) ?? false;

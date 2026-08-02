@@ -1,7 +1,9 @@
 import { PermissionFlagsBits, Message, GuildMember, User, PermissionResolvable } from 'discord.js';
 import { config } from '../config/index.js';
 import { UIFactory } from '../ui/factory.js';
-import { db } from '../state/db.js';
+import { guildStorage } from '../database/repositories/GuildRepository.js';
+import { warningStorage } from '../database/repositories/WarningRepository.js';
+import { afkStorage } from '../database/repositories/AfkRepository.js';
 import { permissionManager } from '../utils/permissionManager.js';
 import { actionLogger } from '../utils/actionLogger.js';
 import { klipyService } from '../services/klipy.js';
@@ -102,9 +104,10 @@ async function guard(
   if (member.permissions.has(PermissionFlagsBits.Administrator)) return true;
 
   // Custom role override
+  const config = guildStorage.get(guild.id);
+  const customPerms = config.customPermissions || {};
   const allowedRoles = [
-    ...db.getPermissions(guild.id, commandName),
-    ...db.getPermissions(guild.id, 'Moderation'),
+    ...(customPerms[commandName || ''] || [])
   ];
   if (member.roles.cache.some(role => allowedRoles.includes(role.id))) {
     // Still verify bot permission
@@ -237,7 +240,7 @@ const commands: Record<string, CommandFunction> = {
 
   async afk(message: Message, args: string[]) {
     const reason = args.join(' ') || 'AFK';
-    db.setAFK(message.author.id, reason);
+    afkStorage.set(message.author.id, { reason, gifUrl: null, timestamp: Date.now() });
     const embed = UIFactory.premium('💤 AFK Status Set', `Reason: ${reason}\n*Send a message to remove your AFK.*`);
     await safeReply(message, { embeds: [embed] });
   },
@@ -292,8 +295,18 @@ const commands: Record<string, CommandFunction> = {
     }
     if (!(await hierarchyCheck(message, target))) return;
 
-    db.addWarning(message.guild.id, target.id, message.author.id, reason);
-    const total = db.getWarnings(message.guild.id, target.id).length;
+    // warningStorage logic:
+    const warns = warningStorage.get(message.guild.id) || [];
+    const warnRecord = {
+      id: Math.random().toString(36).substring(2, 8).toUpperCase(),
+      userId: target.id,
+      moderatorId: message.author.id,
+      reason,
+      timestamp: Date.now()
+    };
+    warns.push(warnRecord);
+    warningStorage.set(message.guild.id, warns);
+    const total = warns.filter(w => w.userId === target.id).length;
     const embed = UIFactory.success('Member Warned', `${target} has been warned.\n**Reason:** ${reason}\n**Total warnings:** ${total}`);
     await safeReply(message, { embeds: [embed] });
     await actionLogger.log(message.guild, {
@@ -316,16 +329,17 @@ const commands: Record<string, CommandFunction> = {
     if (!target) {
       return safeReply(message, { embeds: [UIFactory.error('Missing Target', 'Mention a member or provide a valid user ID. Usage: `?warnings <@user/user_id>`')] }) as unknown as undefined;
     }
-    const warns = db.getWarnings(message.guild.id, target.id);
-    if (!warns.length) {
+    const warns = warningStorage.get(message.guild.id) || [];
+    const userWarns = warns.filter(w => w.userId === target.id);
+    if (!userWarns.length) {
       return safeReply(message, { embeds: [UIFactory.info('Clean Record', `${target} has no warnings.`)] }) as unknown as undefined;
     }
-    const fields = warns.map((w, i) => ({
+    const fields = userWarns.map((w, i) => ({
       name: `Warning #${i + 1}`,
       value: `**Reason:** ${w.reason}\n**Date:** <t:${Math.floor(w.timestamp / 1000)}:f>`,
       inline: false,
     }));
-    const embed = UIFactory.premium(`Warnings — ${target.username}`, `Total: **${warns.length}**`, { fields });
+    const embed = UIFactory.premium(`Warnings — ${target.username}`, `Total: **${userWarns.length}**`, { fields });
     await safeReply(message, { embeds: [embed] });
   },
 
@@ -338,7 +352,10 @@ const commands: Record<string, CommandFunction> = {
       return safeReply(message, { embeds: [UIFactory.error('Missing Target', 'Mention a member or provide a valid user ID. Usage: `?clearwarnings <@user/user_id>`')] }) as unknown as undefined;
     }
     if (!(await hierarchyCheck(message, target))) return;
-    const count = db.clearWarnings(message.guild.id, target.id);
+    const warns = warningStorage.get(message.guild.id) || [];
+    const remaining = warns.filter(w => w.userId !== target.id);
+    const count = warns.length - remaining.length;
+    warningStorage.set(message.guild.id, remaining);
     const embed = UIFactory.success('Warnings Cleared', `Cleared **${count}** warning(s) for ${target}.`);
     await safeReply(message, { embeds: [embed] });
   },

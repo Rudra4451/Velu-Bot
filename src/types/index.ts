@@ -148,6 +148,7 @@ export interface EmbedOptions {
     url?: string;
   };
   timestamp?: boolean | false;
+  color?: number;
 }
 
 // ─── Database Types ───────────────────────────────────────────────────────────
@@ -168,23 +169,17 @@ export interface GuildConfig {
   automodBlockInvites: boolean;
   automodBadwords: boolean;
   automodBadwordsList: string[];
+  customPermissions: Record<string, string[]>;
 }
 
 export interface Warning {
   id: string;
+  userId: string;
   moderatorId: string;
   reason: string;
   timestamp: number;
 }
 
-export interface UserEconomy {
-  userId: string;
-  xp: number;
-  level: number;
-  coins: number;
-  lastDaily: number;
-  lastMessageTime: number; // For XP cooldown
-}
 
 export interface AfkData {
   reason: string;

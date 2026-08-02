@@ -37,7 +37,7 @@
     "@discordjs/voice": "^0.19.2",
     "@distube/ytdl-core": "^4.16.12",
     "@evan/opus": "^1.0.3",
-    "@supabase/supabase-js": "^2.110.3",
+    "@supabase/supabase-js": "^2.111.0",
     "cors": "^2.8.6",
     "discord-player": "^7.2.0",
     "discord.js": "^14.15.3",
@@ -60,7 +60,8 @@
     "@types/express": "^5.0.6",
     "@types/node": "^22.20.1",
     "tsx": "^4.23.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
   },
   "engines": {
     "node": ">=22.0.0"
