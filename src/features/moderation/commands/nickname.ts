@@ -22,6 +22,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   if (!target) {
     const embed = UIFactory.error('Error', 'Target member not found in this server.');
     await middleware.safeReply(interaction, { embeds: [embed], ephemeral: true });
+    return;
   }
 
   // Verify hierarchy
@@ -34,6 +35,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   } catch (err: any) {
     const embed = UIFactory.error('Nickname Update Failed', `Could not update nickname for ${target}: ${err.message}`);
     await middleware.safeReply(interaction, { embeds: [embed] });
+    return;
   }
 
   const embed = UIFactory.success(
