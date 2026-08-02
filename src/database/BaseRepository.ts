@@ -11,7 +11,7 @@ export abstract class BaseRepository<T> implements IRepository<T> {
   private isSyncing = false;
   
   protected tableName: string;
-  protected defaultFactory: () => T;
+  protected defaultFactory?: () => T;
   protected ttlMs: number | null; // null = never expire
   protected eagerLoad: boolean;
   
@@ -22,7 +22,7 @@ export abstract class BaseRepository<T> implements IRepository<T> {
     retries: 0
   };
 
-  constructor(tableName: string, defaultFactory: () => T, options: { ttlMs?: number, eagerLoad?: boolean } = {}) {
+  constructor(tableName: string, defaultFactory?: () => T, options: { ttlMs?: number, eagerLoad?: boolean } = {}) {
     this.tableName = tableName;
     this.defaultFactory = defaultFactory;
     this.ttlMs = options.ttlMs || null;
@@ -110,7 +110,7 @@ export abstract class BaseRepository<T> implements IRepository<T> {
     }
   }
 
-  public get(id: string): T {
+  public get(id: string): T | undefined {
     const entry = this.cache.get(id);
     
     if (entry) {
@@ -126,10 +126,13 @@ export abstract class BaseRepository<T> implements IRepository<T> {
       this.metrics.misses++;
     }
 
-    // Since we want get() to be synchronous, if it's missing (lazy load), 
-    // we return default and async fetch. The real value will populate shortly.
-    // In a fully perfect system we'd await a fetch, but discord bots need sync state access for speed.
-    // If eagerLoad is true, we already have everything.
+    if (!this.defaultFactory) {
+      if (!this.eagerLoad) {
+        this.lazyFetch(id).catch(() => {});
+      }
+      return undefined;
+    }
+
     const defaultData = this.defaultFactory();
     this.cache.set(id, { data: defaultData, expiresAt: this.ttlMs ? Date.now() + this.ttlMs : null });
     
@@ -160,9 +163,10 @@ export abstract class BaseRepository<T> implements IRepository<T> {
     this.scheduleSync();
   }
 
-  public update(id: string, partial: Partial<T>): T {
+  public update(id: string, partial: Partial<T>): T | undefined {
     const current = this.get(id);
-    const updated = { ...current, ...partial };
+    if (current === undefined) return undefined;
+    const updated = { ...current, ...partial } as T;
     this.set(id, updated);
     return updated;
   }

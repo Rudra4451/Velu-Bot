@@ -13,12 +13,34 @@ export const data = new SlashCommandBuilder()
     option.setName('target_id')
       .setDescription('The Discord User ID to unban')
       .setRequired(true)
+      .setAutocomplete(true)
   )
   .addStringOption(option =>
     option.setName('reason')
       .setDescription('Reason for unbanning this user')
       .setRequired(false)
   );
+
+export async function autocomplete(interaction: any): Promise<void> {
+  const focusedValue = interaction.options.getFocused().toLowerCase();
+  
+  try {
+    const bans = await interaction.guild?.bans.fetch();
+    if (!bans) return;
+    
+    const banList = Array.from(bans.values());
+    const filtered = banList.filter((ban: any) => 
+      ban.user.tag.toLowerCase().includes(focusedValue) ||
+      ban.user.id.includes(focusedValue)
+    ).slice(0, 25);
+    
+    await interaction.respond(
+      filtered.map((ban: any) => ({ name: `${ban.user.tag} (${ban.user.id})`, value: ban.user.id }))
+    ).catch(() => {});
+  } catch {
+    await interaction.respond([]).catch(() => {});
+  }
+}
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!interaction.guild) return;

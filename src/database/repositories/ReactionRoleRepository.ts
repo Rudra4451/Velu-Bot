@@ -8,7 +8,7 @@ export interface ReactionRoleConfig {
 
 export class ReactionRoleRepository extends BaseRepository<ReactionRoleConfig[]> {
   constructor() {
-    super('reaction_roles', () => ([]), { eagerLoad: true });
+    super('reaction_roles', undefined, { eagerLoad: true });
   }
 
   protected serialize(id: string, data: ReactionRoleConfig[]): any {

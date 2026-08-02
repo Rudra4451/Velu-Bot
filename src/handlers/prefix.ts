@@ -421,6 +421,40 @@ const commands: Record<string, CommandFunction> = {
     }
   },
 
+  async bans(message: Message, args: string[]) {
+    if (!message.guild) return;
+    if (!(await guard(message, PermissionFlagsBits.BanMembers, PermissionFlagsBits.BanMembers, 'bans'))) return;
+    
+    try {
+      const bans = await message.guild.bans.fetch();
+      if (bans.size === 0) {
+        return safeReply(message, { embeds: [UIFactory.info('Server Bans', 'There are no banned users in this server.')] }) as unknown as undefined;
+      }
+      
+      const banList = Array.from(bans.values());
+      
+      const perPage = 10;
+      const page = Math.max(1, parseInt(args[0]) || 1);
+      const totalPages = Math.ceil(banList.length / perPage);
+      const start = (page - 1) * perPage;
+      const end = start + perPage;
+      
+      const currentBans = banList.slice(start, end);
+      
+      const description = currentBans.map((ban, i) => {
+        return `**${start + i + 1}.** ${ban.user.tag} (\`${ban.user.id}\`)\n> **Reason:** ${ban.reason || 'None'}`;
+      }).join('\n\n');
+      
+      const embed = UIFactory.premium('🔨 Server Bans', description, {
+        footerText: `Page ${Math.min(page, totalPages)} of ${totalPages} • Total: ${banList.length} bans`
+      });
+      
+      await safeReply(message, { embeds: [embed] });
+    } catch (err: any) {
+      await safeReply(message, { embeds: [UIFactory.error('Failed to fetch bans', err.message)] });
+    }
+  },
+
   async unban(message: Message, args: string[]) {
     if (!message.guild) return;
     if (!(await guard(message, PermissionFlagsBits.BanMembers, PermissionFlagsBits.BanMembers, 'unban'))) return;

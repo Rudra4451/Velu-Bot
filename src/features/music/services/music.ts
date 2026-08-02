@@ -539,15 +539,31 @@ export const musicService = {
           searchCache.set(cacheKey, { songs: [song], expiresAt: Date.now() + 60_000 });
           return [song];
         } catch {}
+      } else if (validation === 'so_track') {
+        try {
+          const soData: any = await play.soundcloud(trimmed);
+          searchQuery = `${soData.name} official audio`.trim();
+        } catch {}
       }
 
-      const ytResults = await Promise.race([
-        play.search(searchQuery, { source: { youtube: 'video' }, limit: 10 }),
-        new Promise<any[]>((_, reject) => setTimeout(() => reject(new Error('timeout')), 2500))
-      ]).catch(() => []);
+      // Parallel Hybrid Search: Music (High Fidelity) + Video (Lyrics/Loose)
+      const ytMusicPromise = (play as any).search(searchQuery, { source: { youtube: 'music' }, limit: 5 }).catch(() => []);
+      const ytVideoPromise = play.search(searchQuery, { source: { youtube: 'video' }, limit: 5 }).catch(() => []);
+      
+      const timeoutPromise = new Promise<any[]>((_, reject) => setTimeout(() => reject(new Error('timeout')), 2500));
 
-      if (ytResults && ytResults.length > 0) {
-        const songs: Song[] = ytResults.map((item: any) => ({
+      // Race against a 2.5s timeout to guarantee Discord autocomplete speed
+      const [musicRes, videoRes] = await Promise.race([
+        Promise.all([ytMusicPromise, ytVideoPromise]),
+        timeoutPromise
+      ]).catch(() => [[], []]);
+
+      // Merge and deduplicate by URL
+      const rawResults = [...(musicRes || []), ...(videoRes || [])];
+      const uniqueResults = Array.from(new Map(rawResults.map(item => [item.url, item])).values());
+
+      if (uniqueResults.length > 0) {
+        const songs: Song[] = uniqueResults.slice(0, 10).map((item: any) => ({
           title: item.title || 'Unknown',
           url: item.url,
           duration: item.durationRaw || 'Live',

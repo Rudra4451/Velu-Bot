@@ -48,7 +48,10 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   }
 
   if (subcommand === 'submit') {
-    const config = suggestionStorage.get(guildId);
+    let config = suggestionStorage.get(guildId);
+    if (!config) {
+      config = { enabled: false, channelId: null };
+    }
     if (!config.enabled || !config.channelId) {
       return await middleware.safeReply(interaction, { embeds: [UIFactory.error('Disabled', 'The suggestion system is disabled.')], ephemeral: true }) as unknown as void;
     }

@@ -22,6 +22,14 @@ export class GuildRepository extends BaseRepository<GuildConfig> {
     }), { eagerLoad: true }); // Guild configs should be eagerly loaded
   }
 
+  public get(id: string): GuildConfig {
+    return super.get(id) as GuildConfig;
+  }
+
+  public update(id: string, partial: Partial<GuildConfig>): GuildConfig {
+    return super.update(id, partial) as GuildConfig;
+  }
+
   protected serialize(id: string, data: GuildConfig): any {
     return {
       id,

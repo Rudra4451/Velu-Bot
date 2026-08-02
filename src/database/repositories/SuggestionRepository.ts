@@ -7,10 +7,7 @@ export interface SuggestionConfig {
 
 export class SuggestionRepository extends BaseRepository<SuggestionConfig> {
   constructor() {
-    super('suggestions', () => ({
-      enabled: false,
-      channelId: null,
-    }), { eagerLoad: true });
+    super('suggestions', undefined, { eagerLoad: true });
   }
 
   protected serialize(id: string, data: SuggestionConfig): any {

@@ -3,11 +3,7 @@ import type { AfkData } from '../../types/index.js';
 
 export class AfkRepository extends BaseRepository<AfkData> {
   constructor() {
-    super('afk_status', () => ({
-      reason: 'AFK',
-      gifUrl: null,
-      timestamp: Date.now(),
-    }), { eagerLoad: false, ttlMs: 7200000 }); // Lazy load, expire in 2 hours
+    super('afk_status', undefined, { eagerLoad: true, ttlMs: 7200000 }); // Eager load, expire in 2 hours
   }
 
   protected serialize(id: string, data: AfkData): any {

@@ -3,7 +3,7 @@ import type { Warning } from '../../types/index.js';
 
 export class WarningRepository extends BaseRepository<Warning[]> {
   constructor() {
-    super('warnings', () => ([]), { eagerLoad: false, ttlMs: 3600000 }); // Lazy load, expire in 1 hour
+    super('warnings', undefined, { eagerLoad: true, ttlMs: 3600000 }); // Eager load, expire in 1 hour
   }
 
   protected serialize(id: string, data: Warning[]): any {

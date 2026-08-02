@@ -23,9 +23,16 @@ export const data = new SlashCommandBuilder()
   );
 
 export async function autocomplete(interaction: AutocompleteInteraction): Promise<void> {
-  const query = interaction.options.getString('query', true);
-  if (!query || query.trim().length === 0) {
-    return void await interaction.respond([]).catch(() => {});
+  const query = interaction.options.getString('query') || '';
+  if (query.trim().length === 0) {
+    const recommendations = [
+      { name: '🔥 Top 50 Global Hits', value: 'https://www.youtube.com/playlist?list=PL4fGSI1pQAnOpiVDv2V47I2mF7aJIfCok' },
+      { name: '🎧 Lofi Hip Hop Radio - Beats to Relax/Study to', value: 'https://www.youtube.com/watch?v=jfKfPfyJRdk' },
+      { name: '🌟 Today\'s Top Hits', value: 'https://www.youtube.com/playlist?list=PLx0sYbCqOb8TBPRdmBHs5Iftvv9CB5N5Y' },
+      { name: '🎸 Essential Rock Classics', value: 'https://www.youtube.com/playlist?list=PLKsz0-GgB_G7t-JmQ9722359Kov_oGv6H' },
+      { name: '🌌 Synthwave / Retro Electro Mix', value: 'https://www.youtube.com/watch?v=MVPTGNGiI-4' }
+    ];
+    return void await interaction.respond(recommendations).catch(() => {});
   }
 
   // Fast-path: if query is a URL, offer instant response without network delay

@@ -8,11 +8,7 @@ export interface StarboardConfig {
 
 export class StarboardRepository extends BaseRepository<StarboardConfig> {
   constructor() {
-    super('starboard', () => ({
-      enabled: false,
-      channelId: null,
-      threshold: 3,
-    }), { eagerLoad: true });
+    super('starboard', undefined, { eagerLoad: true });
   }
 
   protected serialize(id: string, data: StarboardConfig): any {

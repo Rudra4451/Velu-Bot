@@ -51,7 +51,10 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   }
 
   if (subcommand === 'panel') {
-    const config = ticketStorage.get(guildId);
+    let config = ticketStorage.get(guildId);
+    if (!config) {
+      config = { enabled: false, categoryId: null, logChannelId: null, supportRoleId: null };
+    }
     if (!config.enabled || !config.categoryId) {
       return await middleware.safeReply(interaction, { embeds: [UIFactory.error('System Disabled', 'Please setup the ticket system first using `/ticket setup`.')], ephemeral: true }) as unknown as void;
     }

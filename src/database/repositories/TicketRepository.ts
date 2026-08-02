@@ -9,12 +9,7 @@ export interface TicketConfig {
 
 export class TicketRepository extends BaseRepository<TicketConfig> {
   constructor() {
-    super('tickets', () => ({
-      enabled: false,
-      categoryId: null,
-      logChannelId: null,
-      supportRoleId: null,
-    }), { eagerLoad: true });
+    super('tickets', undefined, { eagerLoad: true });
   }
 
   protected serialize(id: string, data: TicketConfig): any {

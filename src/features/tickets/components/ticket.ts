@@ -12,7 +12,7 @@ export async function execute(interaction: ButtonInteraction, context: Component
   if (!guild) return;
 
   const config = ticketStorage.get(guild.id);
-  if (!config.enabled || !config.categoryId) {
+  if (!config || !config.enabled || !config.categoryId) {
     return await middleware.safeReply(interaction, { embeds: [UIFactory.error('Disabled', 'The ticket system is currently disabled.')], ephemeral: true }) as unknown as void;
   }
 

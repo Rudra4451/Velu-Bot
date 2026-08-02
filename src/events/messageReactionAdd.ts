@@ -46,7 +46,7 @@ const event: BotEvent = {
     // ── Starboard ─────────────────────────────────────────────────────────────
     if (reaction.emoji.name === '⭐' && !message.author.bot) {
       const config = starboardStorage.get(guildId);
-      if (!config.enabled || !config.channelId) return;
+      if (!config || !config.enabled || !config.channelId || !config.threshold) return;
       if (reaction.count === null || reaction.count < config.threshold) return;
 
       if (starboardCache.has(message.id)) return;
