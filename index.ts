@@ -131,6 +131,11 @@ async function bootstrap() {
     const loadTime = (performance.now() - startTime).toFixed(0);
     logger.info(`⚡ All modules loaded in ${loadTime}ms`);
 
+    logger.info(`✅ Environment Check:`);
+    logger.info(`   - Supabase URL: ${config.SUPABASE_URL ? 'CONFIGURED' : 'MISSING'}`);
+    logger.info(`   - Supabase Key: ${config.SUPABASE_KEY ? 'CONFIGURED (length: ' + config.SUPABASE_KEY.length + ')' : 'MISSING'}`);
+    logger.info(`   - Discord Token: ${config.DISCORD_TOKEN ? 'CONFIGURED' : 'MISSING'}`);
+
     // 2. Connect to Discord Gateway FIRST (bot comes online faster)
     await client.login(config.DISCORD_TOKEN);
 
