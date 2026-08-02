@@ -528,8 +528,8 @@ export const musicService = {
         try {
           if (validation === 'yt_playlist') {
             const playlist = await play.playlist_info(trimmed, { incomplete: true });
-            const tracks = await playlist.all_tracks();
-            const songs: Song[] = tracks.map(track => ({
+            const tracks = await playlist.all_videos();
+            const songs: Song[] = tracks.map((track: any) => ({
               title: track.title || 'Unknown',
               url: track.url,
               duration: track.durationRaw || 'Live',
