@@ -526,19 +526,37 @@ export const musicService = {
         } catch {}
       } else if (validation === 'yt_video' || validation === 'yt_playlist') {
         try {
-          const ytInfo = await play.video_basic_info(trimmed);
-          const song: Song = {
-            title: ytInfo.video_details.title || 'Unknown',
-            url: ytInfo.video_details.url,
-            duration: ytInfo.video_details.durationRaw || 'Live',
-            thumbnail: ytInfo.video_details.thumbnails?.[0]?.url || '',
-            requester: user.tag || user.username || 'User',
-            author: ytInfo.video_details.channel?.name || 'Channel',
-            source: 'youtube'
-          };
-          searchCache.set(cacheKey, { songs: [song], expiresAt: Date.now() + 60_000 });
-          return [song];
-        } catch {}
+          if (validation === 'yt_playlist') {
+            const playlist = await play.playlist_info(trimmed, { incomplete: true });
+            const tracks = await playlist.all_tracks();
+            const songs: Song[] = tracks.map(track => ({
+              title: track.title || 'Unknown',
+              url: track.url,
+              duration: track.durationRaw || 'Live',
+              thumbnail: track.thumbnails?.[0]?.url || '',
+              requester: user.tag || user.username || 'User',
+              author: track.channel?.name || 'Channel',
+              source: 'youtube'
+            }));
+            searchCache.set(cacheKey, { songs, expiresAt: Date.now() + 60_000 });
+            return songs;
+          } else {
+            const ytInfo = await play.video_basic_info(trimmed);
+            const song: Song = {
+              title: ytInfo.video_details.title || 'Unknown',
+              url: ytInfo.video_details.url,
+              duration: ytInfo.video_details.durationRaw || 'Live',
+              thumbnail: ytInfo.video_details.thumbnails?.[0]?.url || '',
+              requester: user.tag || user.username || 'User',
+              author: ytInfo.video_details.channel?.name || 'Channel',
+              source: 'youtube'
+            };
+            searchCache.set(cacheKey, { songs: [song], expiresAt: Date.now() + 60_000 });
+            return [song];
+          }
+        } catch (e) {
+          logger.warn(`Failed to parse yt_video or yt_playlist: ${e}`);
+        }
       } else if (validation === 'so_track') {
         try {
           const soData: any = await play.soundcloud(trimmed);
@@ -588,8 +606,6 @@ export const musicService = {
     const songs = await this.searchTracks(query, member.user);
     if (!songs || songs.length === 0) throw new Error(`No audio tracks found for "${query}".`);
 
-    const song = songs[0];
-
     let player = guildPlayers.get(member.guild.id);
     if (!player) {
       player = new GuildMusicPlayer(member.guild.id, voiceChannel, textChannel);
@@ -599,17 +615,32 @@ export const musicService = {
       player.voiceChannel = voiceChannel;
     }
 
-    player.queue.push(song);
+    const isPlaylist = query.includes('list=') || query.includes('playlist');
 
-    if (player.audioPlayer.state.status === AudioPlayerStatus.Idle && player.currentIndex === player.queue.length - 1) {
-      player.play().catch(err => logger.error('Player error:', err));
+    if (isPlaylist && songs.length > 1) {
+      player.queue.push(...songs);
+      if (player.audioPlayer.state.status === AudioPlayerStatus.Idle && player.currentIndex === player.queue.length - songs.length) {
+        player.play().catch(err => logger.error('Player error:', err));
+      }
+      return {
+        message: `Queued **${songs.length} tracks** from playlist!`,
+        trackName: 'Playlist',
+        thumbnail: songs[0].thumbnail
+      };
+    } else {
+      const song = songs[0];
+      player.queue.push(song);
+
+      if (player.audioPlayer.state.status === AudioPlayerStatus.Idle && player.currentIndex === player.queue.length - 1) {
+        player.play().catch(err => logger.error('Player error:', err));
+      }
+
+      return {
+        message: `Queued **[${song.title}](${song.url})**`,
+        trackName: song.title,
+        thumbnail: song.thumbnail
+      };
     }
-
-    return {
-      message: `Queued **[${song.title}](${song.url})**`,
-      trackName: song.title,
-      thumbnail: song.thumbnail
-    };
   },
   
   previous(guildId: string): boolean {
