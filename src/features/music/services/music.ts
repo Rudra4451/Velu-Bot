@@ -21,6 +21,7 @@ import play from 'play-dl';
 import { UIFactory } from '../../../ui/factory.js';
 import { logger } from '../../../utils/logger.js';
 import { stateManager } from '../../../core/stateManager.js';
+import { THEME } from '../../../constants/theme.js';
 
 play.setToken({ soundcloud: { client_id: 'sUn5toeW5d8MC2jOLpE2yAibTG7RRYsA' } });
 
